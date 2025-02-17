@@ -89,6 +89,21 @@ pub enum Token<'a> {
     Expr(&'a str),
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum TokenOwned {
+    Static(String),
+    Expr(String),
+}
+
+impl From<Token<'_>> for TokenOwned {
+    fn from(value: Token) -> Self {
+        match value {
+            Token::Static(val) => Self::Static(val.into()),
+            Token::Expr(val) => Self::Expr(val.into()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{Tokenizer, Token};
