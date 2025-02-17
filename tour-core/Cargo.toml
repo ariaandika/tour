@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+proc-macro2 = "1.0.93"
+syn = { version = "2.0.98", features = ["full"], optional = true }
+
+[features]
+default = []
+full = ["syn"]
+syn = ["dep:syn"]
+
