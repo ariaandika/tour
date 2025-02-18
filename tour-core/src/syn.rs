@@ -69,7 +69,6 @@ fn process_stmt(iter: &mut impl Iterator<Item = TemplStmt>, tokens: &mut TokenSt
             TemplStmt::Const(expr_const) => expr_const.to_tokens(tokens),
             TemplStmt::Let(expr_let) => expr_let.to_tokens(tokens),
 
-            // TODO:
             TemplStmt::Value(expr) => {
                 writer.to_tokens(&format_ident!("writer"), expr, tokens,);
             }
@@ -413,9 +412,12 @@ pub mod flat {
 
         #[test]
         fn basic() {
-            assert!(matches!(tokenize_expr("if let Some(desc) = desc"),Ok(TemplStmt::If(_))));
-            assert!(matches!(tokenize_expr("case Ok(4..) | Ok(0)"),Ok(TemplStmt::Case(_))));
-            assert!(matches!(tokenize_expr(" end "),Ok(TemplStmt::End(_))));
+            fn expr(val: &str) -> Result<TemplStmt> {
+                syn::parse_str(val)
+            }
+            assert!(matches!(expr("if let Some(desc) = desc"),Ok(TemplStmt::If(_))));
+            assert!(matches!(expr("case Ok(4..) | Ok(0)"),Ok(TemplStmt::Case(_))));
+            assert!(matches!(expr(" end "),Ok(TemplStmt::End(_))));
         }
     }
 }
