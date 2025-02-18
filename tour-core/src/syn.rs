@@ -11,17 +11,38 @@ pub mod flat {
         for token in tokens {
             match token {
                 crate::tokenizer::Token::Static(val) => output.push(TemplStmt::Static(val.into())),
-                crate::tokenizer::Token::Expr(val) => output.push(tokenize_expr(val)?),
+                crate::tokenizer::Token::Expr(val) => output.push(syn::parse_str(val)?),
             }
         }
 
         Ok(output)
     }
 
-    pub fn tokenize_expr(val: &str) -> syn::Result<TemplStmt> {
-        syn::parse_str::<TemplStmt>(val)
+    pub struct Parser<I> {
+        iter: I
     }
 
+    impl<I> Parser<I> {
+        pub fn new(iter: I) -> Self {
+            Self { iter }
+        }
+    }
+
+    impl<'a, I> Iterator for Parser<I>
+    where
+        I: Iterator<Item = crate::tokenizer::Token<'a>>,
+    {
+        type Item = syn::Result<TemplStmt>;
+
+        fn next(&mut self) -> Option<Self::Item> {
+            match self.iter.next()? {
+                crate::tokenizer::Token::Static(val) => Some(Ok(TemplStmt::Static(val.into()))),
+                crate::tokenizer::Token::Expr(val) => Some(syn::parse_str(val)),
+            }
+        }
+    }
+
+    /// single statement inside `{{ }}` block or a static template
     pub enum TemplStmt {
         Static(String),
 
