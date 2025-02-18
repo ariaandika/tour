@@ -1,5 +1,114 @@
-use syn::{parse::{Parse, ParseStream}, *};
-use quote::{quote, ToTokens};
+use flat::TemplStmt;
+use proc_macro2::{Span, TokenStream};
+use syn::{parse::{Parse, ParseStream}, token::Brace, *};
+use quote::{format_ident, quote, ToTokens};
+
+pub fn parse_to(mut stmts: impl Iterator<Item = TemplStmt>, tokens: &mut TokenStream, writer: impl Writer) {
+    process_stmt(&mut stmts, tokens, &writer);
+}
+
+fn process_stmt(iter: &mut impl Iterator<Item = TemplStmt>, tokens: &mut TokenStream, writer: &impl Writer) {
+    while let Some(next) = iter.next() {
+        match next {
+            TemplStmt::Static(val) => {
+                writer.to_tokens(
+                    &format_ident!("writer"),
+                    Expr::Lit(ExprLit {
+                        lit: Lit::Str(LitStr::new(&val, Span::call_site())),
+                        attrs: vec![],
+                    }),
+                    tokens,
+                );
+            }
+            TemplStmt::If(templ_if) => {
+                templ_if.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+            TemplStmt::Else(templ_else) => {
+                templ_else.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+            TemplStmt::Match(templ_match) => {
+                templ_match.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+
+            TemplStmt::Case(templ_case) => {
+                templ_case.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+            TemplStmt::ForLoop(templ_for_loop) => {
+                templ_for_loop.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+            TemplStmt::While(templ_while) => {
+                templ_while.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+            TemplStmt::Loop(templ_loop) => {
+                templ_loop.to_tokens(tokens);
+                Brace::default().surround(tokens, |tokens|{
+                    process_stmt(iter, tokens, writer);
+                });
+            }
+
+            TemplStmt::Break(expr_break) => expr_break.to_tokens(tokens),
+            TemplStmt::Continue(expr_continue) => expr_continue.to_tokens(tokens),
+            TemplStmt::Const(expr_const) => expr_const.to_tokens(tokens),
+            TemplStmt::Let(expr_let) => expr_let.to_tokens(tokens),
+
+            // TODO:
+            TemplStmt::Value(expr) => {
+                writer.to_tokens(&format_ident!("writer"), expr, tokens,);
+            }
+
+            TemplStmt::End(_) => return
+        }
+    }
+
+}
+
+/// this requires 2 Trait:
+///
+/// - Render, the renderer that holds the final buffer
+/// - Renderable, value that can emit a buffer
+///
+/// ```no_run
+/// trait Render {
+///     fn render(&mut self, value: &impl Renderable);
+/// }
+/// trait Renderable {
+///     fn value(&self) -> &[u8];
+/// }
+/// ```
+pub trait Writer {
+    fn from_expr(expr: Expr) -> Self;
+    fn to_tokens(&self, ident: &Ident, value: Expr, tokens: &mut TokenStream);
+}
+
+pub struct TraitWriter(Expr);
+
+impl Writer for TraitWriter {
+    fn from_expr(expr: Expr) -> Self {
+        Self(expr)
+    }
+
+    fn to_tokens(&self, ident: &Ident, value: Expr, tokens: &mut TokenStream) {
+        tokens.extend(quote! { Render::render(&mut #ident, #value); });
+    }
+}
 
 pub mod flat {
     //! flat, one dimensional tokens
