@@ -1,8 +1,8 @@
 use syn::{parse::{Parse, ParseStream}, *};
+use quote::{quote, ToTokens};
 
 pub mod flat {
     //! flat, one dimensional tokens
-    #![allow(dead_code)]
     use super::*;
 
     pub fn parse<'a>(tokens: impl Iterator<Item = crate::tokenizer::Token<'a>>) -> syn::Result<Vec<TemplStmt>> {
@@ -73,6 +73,27 @@ pub mod flat {
         }
     }
 
+    impl ToTokens for TemplStmt {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            match self {
+                TemplStmt::Static(value) => value.to_tokens(tokens),
+                TemplStmt::If(templ_if) => templ_if.to_tokens(tokens),
+                TemplStmt::Else(templ_else) => templ_else.to_tokens(tokens),
+                TemplStmt::Match(templ_match) => templ_match.to_tokens(tokens),
+                TemplStmt::Case(templ_case) => templ_case.to_tokens(tokens),
+                TemplStmt::ForLoop(templ_for_loop) => templ_for_loop.to_tokens(tokens),
+                TemplStmt::While(templ_while) => templ_while.to_tokens(tokens),
+                TemplStmt::Loop(templ_loop) => templ_loop.to_tokens(tokens),
+                TemplStmt::Break(expr_break) => expr_break.to_tokens(tokens),
+                TemplStmt::Continue(expr_continue) => expr_continue.to_tokens(tokens),
+                TemplStmt::Const(expr_const) => expr_const.to_tokens(tokens),
+                TemplStmt::Let(expr_let) => expr_let.to_tokens(tokens),
+                TemplStmt::Value(expr) => expr.to_tokens(tokens),
+                TemplStmt::End(end) => end.to_tokens(tokens),
+            }
+        }
+    }
+
     pub struct TemplIf {
         if_token: Token![if],
         cond: Box<Expr>,
@@ -84,6 +105,13 @@ pub mod flat {
                 if_token: input.parse()?,
                 cond: Box::new(input.parse()?),
             })
+        }
+    }
+
+    impl ToTokens for TemplIf {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.if_token.to_tokens(tokens);
+            self.cond.to_tokens(tokens);
         }
     }
 
@@ -104,6 +132,16 @@ pub mod flat {
         }
     }
 
+    impl ToTokens for TemplElse {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.else_token.to_tokens(tokens);
+            if let Some((if_token,cond)) = &self.if_branch {
+                if_token.to_tokens(tokens);
+                cond.to_tokens(tokens);
+            }
+        }
+    }
+
     pub struct TemplMatch {
         match_token: Token![match],
         expr: Box<Expr>,
@@ -118,7 +156,15 @@ pub mod flat {
         }
     }
 
+    impl ToTokens for TemplMatch {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.match_token.to_tokens(tokens);
+            self.expr.to_tokens(tokens);
+        }
+    }
+
     pub struct TemplCase {
+        #[allow(dead_code)]
         case_token: kw::case,
         pat: Pat,
         guard: Option<(Token![if],Box<Expr>)>,
@@ -134,6 +180,17 @@ pub mod flat {
                     false => None,
                 },
             })
+        }
+    }
+
+    impl ToTokens for TemplCase {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.pat.to_tokens(tokens);
+            if let Some((if_token,cond)) = &self.guard {
+                if_token.to_tokens(tokens);
+                cond.to_tokens(tokens);
+            }
+            tokens.extend(quote! { => });
         }
     }
 
@@ -155,6 +212,15 @@ pub mod flat {
         }
     }
 
+    impl ToTokens for TemplForLoop {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.for_token.to_tokens(tokens);
+            self.pat.to_tokens(tokens);
+            self.in_token.to_tokens(tokens);
+            self.expr.to_tokens(tokens);
+        }
+    }
+
     pub struct TemplWhile {
         while_token: Token![while],
         cond: Box<Expr>,
@@ -169,6 +235,13 @@ pub mod flat {
         }
     }
 
+    impl ToTokens for TemplWhile {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.while_token.to_tokens(tokens);
+            self.cond.to_tokens(tokens);
+        }
+    }
+
     pub struct TemplLoop {
         loop_token: Token![loop],
     }
@@ -179,11 +252,23 @@ pub mod flat {
         }
     }
 
+    impl ToTokens for TemplLoop {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.loop_token.to_tokens(tokens);
+        }
+    }
+
     pub struct End(kw::end);
 
     impl Parse for End {
         fn parse(input: ParseStream) -> Result<Self> {
             Ok(Self(input.parse()?))
+        }
+    }
+
+    impl ToTokens for End {
+        fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+            self.0.to_tokens(tokens);
         }
     }
 
