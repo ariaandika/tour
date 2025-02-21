@@ -21,8 +21,39 @@ pub enum Token {
     LitNum(Span),
 }
 
+impl Token {
+    fn span(&self) -> &Span {
+        match self {
+            Token::Static(span) |
+                Token::Ident(span) |
+                Token::Punct(span) |
+                Token::LitStr(span) |
+                Token::LitNum(span) => span
+        }
+    }
+
+}
+
+impl PartialEq<Span> for Token {
+    fn eq(&self, other: &Span) -> bool {
+        self.span() == other
+    }
+}
+
 pub struct Span {
     range: Range<usize>,
+}
+
+impl PartialEq for Span {
+    fn eq(&self, other: &Self) -> bool {
+        &self.range == &other.range
+    }
+}
+
+impl PartialEq<Range<usize>> for Span {
+    fn eq(&self, other: &Range<usize>) -> bool {
+        &self.range == other
+    }
 }
 
 impl Span {
@@ -146,29 +177,38 @@ impl Iterator for Tokenizer<'_> {
 
                     match self.source.get(current) {
                         Some(&b'{') => {
-                            self.state = TokenizerState::OpenExpr { start };
+                            self.state = TokenizerState::OpenExpr { start, brace: current };
                         },
                         Some(_) => {}
                         None => {
                             self.state = TokenizerState::End;
-                            return Some(Token::Static(Span::range(start..current)));
+                            let range = start..current;
+                            if !range.is_empty() {
+                                return Some(Token::Static(Span::range(range)));
+                            }
                         },
                     }
                 }
-                TokenizerState::OpenExpr { start } => {
+                TokenizerState::OpenExpr { start, brace } => {
                     self.offset += 1;
 
                     match self.source.get(current) {
                         Some(&b'{') => {
                             self.state = TokenizerState::Expr;
-                            return Some(Token::Static(Span::range(start..current)));
+                            let range = start..brace;
+                            if !range.is_empty() {
+                                return Some(Token::Static(Span::range(range)));
+                            }
                         }
                         Some(_) => {
                             self.state = TokenizerState::Static { start };
                         }
                         None => {
                             self.state = TokenizerState::End;
-                            return Some(Token::Static(Span::range(start..current)));
+                            let range = start..current;
+                            if !range.is_empty() {
+                                return Some(Token::Static(Span::range(range)));
+                            }
                         }
                     }
                 }
@@ -228,9 +268,60 @@ impl Iterator for Tokenizer<'_> {
 
 enum TokenizerState {
     Static { start: usize },
-    OpenExpr { start: usize },
+    OpenExpr { start: usize, brace: usize },
     CloseExpr { start: usize },
     Expr,
     End,
+}
+
+#[cfg(test)]
+mod test {
+    use super::{Tokenizer, Token};
+
+    macro_rules! assert_next {
+        ($tokens:ident) => {
+            assert!(matches!($tokens.next(),None))
+        };
+        ($tokens:ident,$src:ident,$variant:ident,$expect:literal) => {
+            let next = $tokens.next().unwrap();
+            assert!(matches!(next,Token::$variant(_)));
+            assert_eq!(next.span().eval($src),$expect);
+        };
+    }
+
+    #[test]
+    fn basic() {
+        let src = "Token {{ expr { object } }} once { ignored }";
+        let mut tokens = Tokenizer::new(src);
+
+        assert_next!(tokens,src,Static,"Token ");
+        assert_next!(tokens,src,Ident,"expr");
+        assert_next!(tokens,src,Punct,"{");
+        assert_next!(tokens,src,Ident,"object");
+        assert_next!(tokens,src,Punct,"}");
+        assert_next!(tokens,src,Static," once { ignored }");
+        assert_next!(tokens);
+    }
+
+    #[test]
+    fn empty_expr() {
+        let src = "Token {{}} once {{  \n }}";
+        let mut tokens = Tokenizer::new(src);
+
+        assert_next!(tokens,src,Static,"Token ");
+        assert_next!(tokens,src,Static," once ");
+        assert_next!(tokens);
+    }
+
+    #[test]
+    fn empty_static() {
+        let src = "Token {{ expr1 }}{{ expr2 }}";
+        let mut tokens = Tokenizer::new(src);
+
+        assert_next!(tokens,src,Static,"Token ");
+        assert_next!(tokens,src,Ident,"expr1");
+        assert_next!(tokens,src,Ident,"expr2");
+        assert_next!(tokens);
+    }
 }
 
