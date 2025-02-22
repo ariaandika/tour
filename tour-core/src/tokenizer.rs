@@ -26,129 +26,103 @@ impl<'a> Iterator for Tokenizer<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             match self.state {
-                TokenizeState::Static(static_start) => {
-                    macro_rules! next_or_complete {
-                        () => {
-                            match self.iter.next() {
-                                Some(some) => some,
-                                None => {
-                                    self.state = TokenizeState::Eof;
-                                    return Some(Token::Static(&self.source[static_start..]));
-                                },
-                            }
-                        };
-                    }
-
-                    // current check
-                    if matches!(self.source.get(static_start..static_start+1),Some("{")) {
-                        // second check
-                        let (_,ch) = next_or_complete!();
-
-                        if matches!(ch,'{') {
-                            // empty static
-                            // note that '{{' is included as static on EOF
-                            let (expr_start,_) = next_or_complete!();
-                            self.state = TokenizeState::Expr(expr_start);
-                            continue;
+                TokenizeState::Static(start) => match self.iter.next() {
+                    Some((_,'{')) => self.state = TokenizeState::OpenExpr(start),
+                    Some(_) => { },
+                    None => {
+                        let content = &self.source[start..];
+                        return if content.is_empty() {
+                            None
+                        } else {
+                            self.state = TokenizeState::Eof;
+                            Some(Token::Static(content))
                         }
-
-                        continue;
-                    }
-
-                    let (static_end,ch) = next_or_complete!();
-
-                    if !matches!(ch,'{') {
-                        continue;
-                    }
-
-                    let (_,ch) = next_or_complete!();
-
-                    if !matches!(ch,'{') {
-                        continue;
-                    }
-
-                    // found expression
-                    // note that '{{' is included as static on EOF
-                    let (expr_start,_) = next_or_complete!();
-
-                    self.state = TokenizeState::Expr(expr_start);
-                    return Some(Token::Static(&self.source[static_start..static_end]));
-                }
-                TokenizeState::Expr(expr_start) => {
-                    macro_rules! next_or_complete {
-                        () => { next_or_complete!(expr_start..) };
-                        // this branch will exclude '}}' on EOF
-                        ($end:tt) => { next_or_complete!(expr_start..$end) };
-                        ($($range:tt)*) => {
-                            match self.iter.next() {
-                                Some(some) => some,
-                                None => {
-                                    self.state = TokenizeState::Eof;
-                                    // exclude empty expression
-                                    let expr = &self.source[$($range)*];
-                                    if expr.chars().all(|e|e.is_whitespace()) {
-                                        return None;
-                                    }
-                                    return Some(Token::Expr(expr));
-                                },
-                            }
-                        };
-                    }
-
-                    // current check
-                    if matches!(self.source.get(expr_start..expr_start+1),Some("}")) {
-                        // second check
-                        let (_,ch) = next_or_complete!();
-
-                        if matches!(ch,'}') {
-                            // empty expression, exclude '}}' on EOF
-                            let (static_start,_) = next_or_complete!(expr_start);
-                            self.state = TokenizeState::Static(static_start);
-                            continue;
+                    },
+                },
+                TokenizeState::Expr(start) => match self.iter.next() {
+                    Some((_,'}')) => self.state = TokenizeState::CloseExpr(start),
+                    Some(_) => { },
+                    None => {
+                        let expr = &self.source[start..];
+                        return if expr.is_empty() {
+                            None
+                        } else {
+                            self.state = TokenizeState::Eof;
+                            Some(Token::Expr(expr))
                         }
-
-                        continue;
-                    }
-
-                    // first check
-                    let (expr_end,ch) = next_or_complete!();
-
-                    if !matches!(ch,'}') {
-                        continue;
-                    }
-
-                    // second check
-                    let (_,ch) = next_or_complete!();
-
-                    if !matches!(ch,'}') {
-                        continue;
-                    }
-
-                    // found expr closing, exclude '}}' on EOF
-                    let (static_start,_) = next_or_complete!(expr_end);
-
-                    self.state = TokenizeState::Static(static_start);
-
-                    // exclude empty expression
-                    let expr = &self.source[expr_start..expr_end];
-                    if expr.chars().all(|e|e.is_whitespace()) {
-                        continue;
-                    }
-
-                    return Some(Token::Expr(expr));
-                }
-                TokenizeState::Eof => {
-                    return None;
-                }
+                    },
+                },
+                TokenizeState::OpenExpr(start) => match self.iter.next() {
+                    Some((start_expr,'{')) => {
+                        self.state = TokenizeState::StartExpr;
+                        let content = &self.source[start..start_expr - 1];
+                        if !content.is_empty() {
+                            return Some(Token::Static(content))
+                        }
+                    },
+                    Some(_) => {
+                        self.state = TokenizeState::Static(start);
+                    },
+                    None => {
+                        let content = &self.source[start..];
+                        return if content.is_empty() {
+                            None
+                        } else {
+                            self.state = TokenizeState::Eof;
+                            Some(Token::Static(content))
+                        }
+                    },
+                },
+                TokenizeState::CloseExpr(start) => match self.iter.next() {
+                    Some((start_static,'}')) => {
+                        self.state = TokenizeState::EndExpr;
+                        let content = self.source[start..start_static - 1].trim();
+                        if !content.is_empty() {
+                            return Some(Token::Expr(content))
+                        }
+                    },
+                    Some(_) => {
+                        self.state = TokenizeState::Expr(start);
+                    },
+                    None => {
+                        let content = self.source[start..].trim();
+                        return if content.is_empty() {
+                            None
+                        } else {
+                            self.state = TokenizeState::Eof;
+                            Some(Token::Expr(content))
+                        }
+                    },
+                },
+                TokenizeState::StartExpr => self.state = match self.iter.next()? {
+                    (n,'}') => TokenizeState::CloseExpr(n),
+                    (n,_) => TokenizeState::Expr(n)
+                },
+                TokenizeState::EndExpr => self.state = match self.iter.next()? {
+                    (n,'{') => TokenizeState::OpenExpr(n),
+                    (n,_) => TokenizeState::Static(n)
+                },
+                TokenizeState::Eof => return None,
             }
         }
     }
 }
 
 #[derive(Debug)]
-enum TokenizeState {
+pub enum TokenizeState {
+    /// last item is a static value
     Static(usize),
+    /// last item is a '{'
+    OpenExpr(usize),
+    /// state after [`TokenizeState::OpenExpr`] which the index still point to '{'
+    StartExpr,
+    /// last item is an expression
     Expr(usize),
+    /// last item is a '}'
+    CloseExpr(usize),
+    /// state after [`TokenizeState::CloseExpr`] which the index still point to '}'
+    EndExpr,
+    /// end of iterator
     Eof,
 }
 
@@ -182,7 +156,7 @@ mod test {
         let src = "Token {{ expr { object } }} once { ignored }";
         let mut tokenizer = Tokenizer::new(src);
         assert_eq!(tokenizer.next(),Some(Token::Static("Token ")));
-        assert_eq!(tokenizer.next(),Some(Token::Expr(" expr { object } ")));
+        assert_eq!(tokenizer.next(),Some(Token::Expr("expr { object }")));
         assert_eq!(tokenizer.next(),Some(Token::Static(" once { ignored }")));
         assert_eq!(tokenizer.next(),None);
     }
@@ -201,8 +175,8 @@ mod test {
         let src = "Token {{ expr1 }}{{ expr2 }}";
         let mut tokenizer = Tokenizer::new(src);
         assert_eq!(tokenizer.next(),Some(Token::Static("Token ")));
-        assert_eq!(tokenizer.next(),Some(Token::Expr(" expr1 ")));
-        assert_eq!(tokenizer.next(),Some(Token::Expr(" expr2 ")));
+        assert_eq!(tokenizer.next(),Some(Token::Expr("expr1")));
+        assert_eq!(tokenizer.next(),Some(Token::Expr("expr2")));
         assert_eq!(tokenizer.next(),None);
     }
 }
