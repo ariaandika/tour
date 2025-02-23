@@ -1,72 +1,70 @@
+//! parse template as syn tokens
 use flat::TemplStmt;
-use proc_macro2::{Span, TokenStream};
-use syn::{parse::{Parse, ParseStream}, token::Brace, *};
-use quote::{format_ident, quote, ToTokens};
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
+use syn::{
+    parse::{Parse, ParseStream},
+    token::Brace,
+    *,
+};
+
+use crate::tokenizer::{Tokenizer, Token};
 
 pub fn parse_str(source: &str) -> Result<TokenStream> {
     let mut output = quote! {};
-    parse_to(flat::Parser::new(crate::tokenizer::Tokenizer::new(source)), &mut output, TraitWriter)?;
+    let mut parser = flat::Parser::new(Tokenizer::new(source));
+    let writer = TraitWriter;
+    parse_to(&mut parser, &mut output, &writer)?;
     Ok(output)
 }
 
-pub fn parse_to(mut stmts: impl Iterator<Item = Result<TemplStmt>>, tokens: &mut TokenStream, writer: impl Writer) -> Result<()> {
-    process_stmt(&mut stmts, tokens, &writer)
-}
-
-fn process_stmt(iter: &mut impl Iterator<Item = Result<TemplStmt>>, tokens: &mut TokenStream, writer: &impl Writer) -> Result<()> {
+pub fn parse_to(iter: &mut impl Iterator<Item = Result<TemplStmt>>, tokens: &mut TokenStream, writer: &impl Writer) -> Result<()> {
     while let Some(next) = iter.next() {
         match next? {
             TemplStmt::Static(val) => {
-                writer.to_tokens(
-                    &format_ident!("writer"),
-                    Expr::Lit(ExprLit {
-                        lit: Lit::Str(LitStr::new(&val, Span::call_site())),
-                        attrs: vec![],
-                    }),
-                    tokens,
-                );
+                writer.to_tokens(syn::parse_quote!(#val), tokens);
             }
             TemplStmt::If(templ_if) => {
                 templ_if.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
             TemplStmt::Else(templ_else) => {
                 templ_else.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
             TemplStmt::Match(templ_match) => {
                 templ_match.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
 
             TemplStmt::Case(templ_case) => {
                 templ_case.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
             TemplStmt::ForLoop(templ_for_loop) => {
                 templ_for_loop.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
             TemplStmt::While(templ_while) => {
                 templ_while.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
             TemplStmt::Loop(templ_loop) => {
                 templ_loop.to_tokens(tokens);
                 let mut inner = quote! {};
-                process_stmt(iter, &mut inner, writer)?;
+                parse_to(iter, &mut inner, writer)?;
                 Brace::default().surround(tokens, |tokens|tokens.extend(inner));
             }
 
@@ -76,7 +74,7 @@ fn process_stmt(iter: &mut impl Iterator<Item = Result<TemplStmt>>, tokens: &mut
             TemplStmt::Let(expr_let) => expr_let.to_tokens(tokens),
 
             TemplStmt::Value(expr) => {
-                writer.to_tokens(&format_ident!("writer"), expr, tokens,);
+                writer.to_tokens(expr, tokens);
             }
 
             TemplStmt::End(_) => break
@@ -100,39 +98,28 @@ fn process_stmt(iter: &mut impl Iterator<Item = Result<TemplStmt>>, tokens: &mut
 /// }
 /// ```
 pub trait Writer {
-    fn to_tokens(&self, ident: &Ident, value: Expr, tokens: &mut TokenStream);
+    fn to_tokens(&self, value: Expr, tokens: &mut TokenStream);
 }
 
 pub struct TraitWriter;
 
 impl Writer for TraitWriter {
-    fn to_tokens(&self, ident: &Ident, value: Expr, tokens: &mut TokenStream) {
-        tokens.extend(quote! { Render::render(&mut #ident, #value); });
+    fn to_tokens(&self, value: Expr, tokens: &mut TokenStream) {
+        tokens.extend(quote! { Render::render(&mut writer, #value); });
     }
 }
 
 pub mod flat {
-    //! flat, one dimensional tokens
+    //! one dimensional tokens
     use super::*;
 
-    pub fn parse<'a>(tokens: impl Iterator<Item = crate::tokenizer::Token<'a>>) -> syn::Result<Vec<TemplStmt>> {
-        let mut output = vec![];
-
-        for token in tokens {
-            match token {
-                crate::tokenizer::Token::Static(val) => output.push(TemplStmt::Static(val.into())),
-                crate::tokenizer::Token::Expr(val) => output.push(syn::parse_str(val)?),
-            }
-        }
-
-        Ok(output)
-    }
-
+    /// parse template as syn tokens
     pub struct Parser<I> {
         iter: I
     }
 
     impl<I> Parser<I> {
+        /// create new [`Parser`]
         pub fn new(iter: I) -> Self {
             Self { iter }
         }
@@ -140,47 +127,68 @@ pub mod flat {
 
     impl<'a, I> Iterator for Parser<I>
     where
-        I: Iterator<Item = crate::tokenizer::Token<'a>>,
+        I: Iterator<Item = Token<'a>>,
     {
         type Item = syn::Result<TemplStmt>;
 
         fn next(&mut self) -> Option<Self::Item> {
             match self.iter.next()? {
-                crate::tokenizer::Token::Static(val) => Some(Ok(TemplStmt::Static(val.into()))),
-                crate::tokenizer::Token::Expr(val) => Some(syn::parse_str(val)),
+                Token::Static(val) => Some(Ok(TemplStmt::Static(val.into()))),
+                Token::Expr(val) => Some(syn::parse_str(val)),
             }
         }
     }
 
     /// single statement inside `{{ }}` block or a static template
     pub enum TemplStmt {
+        /// static content
         Static(String),
 
         // if branching
+
+        /// `{{ if self.role == Role::Admin }}`
         If(TemplIf),
+        /// `{{ else if self.role == Role::Root }}`
         Else(TemplElse),
 
         // match branching
+
+        /// `{{ match self.role }}`
         Match(TemplMatch),
+        /// `{{ case Admin(level) if level > 3 }}`
         Case(TemplCase),
 
         // iterations
+
+        /// `{{ for order in self.orders }}`
         ForLoop(TemplForLoop),
+        /// `{{ while !self.orders.is_empty() }}`
         While(TemplWhile),
+        /// `{{ loop }}`
         Loop(TemplLoop),
 
         // control flow
+
+        /// `{{ break }}`
         Break(ExprBreak),
+        /// `{{ continue }}`
         Continue(ExprContinue),
 
         // declarations
-        Const(ExprConst),
+
+        /// `{{ const ID: &str = "app-14"; }}`
+        Const(ItemConst),
+        /// `{{ let full_name = format!("{}-{}", self.name, ID); }}`
         Let(ExprLet),
 
         // renderable value
+
+        /// `{{ &self.name }}`
         Value(Expr),
 
         // termination
+
+        /// `{{ end }}`
         End(End),
     }
 
@@ -225,6 +233,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ if self.role == Role::Admin }}`
     pub struct TemplIf {
         if_token: Token![if],
         cond: Box<Expr>,
@@ -246,6 +255,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ else if self.role == Role::Root }}`
     pub struct TemplElse {
         else_token: Token![else],
         if_branch: Option<(Token![if],Box<Expr>)>,
@@ -273,6 +283,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ match self.role }}`
     pub struct TemplMatch {
         match_token: Token![match],
         expr: Box<Expr>,
@@ -294,6 +305,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ case Admin(level) if level > 3 }}`
     pub struct TemplCase {
         #[allow(dead_code)]
         case_token: kw::case,
@@ -325,6 +337,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ for order in self.orders }}`
     pub struct TemplForLoop {
         for_token: Token![for],
         pat: Box<Pat>,
@@ -352,6 +365,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ while !self.orders.is_empty() }}`
     pub struct TemplWhile {
         while_token: Token![while],
         cond: Box<Expr>,
@@ -373,6 +387,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ loop }}`
     pub struct TemplLoop {
         loop_token: Token![loop],
     }
@@ -389,6 +404,7 @@ pub mod flat {
         }
     }
 
+    /// `{{ end }}`
     pub struct End(kw::end);
 
     impl Parse for End {
@@ -403,7 +419,7 @@ pub mod flat {
         }
     }
 
-    pub mod kw {
+    mod kw {
         syn::custom_keyword!(end);
         syn::custom_keyword!(case);
     }
