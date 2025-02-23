@@ -16,15 +16,25 @@ parts of the best of each world, implemented to the best case
 - runtime template bring the smallest overhead by having simple rules, resulting no compilation required
 - compiled template provide rich expressions with native performance via macros
 
-## Going in depth
+### Runtime Template
 
-runtime template can only use layout and render variables
+only exists in debug, on release it converted to compiled template
 
-runtime template should be used in content heavy page with less logic like layouts
+written as separate file
 
-compiled template can do pretty much anything rust can do, like pattern matching
+can only render a variable
 
-compiled template should be used in logic heavy page like list and tables
+should be used in content heavy page with less logic like layouts
 
-in practice, single page is a runtime template with fields of compiled template
+### Compiled Template
+
+written directly in code
+
+can do pretty much anything rust can do, like pattern matching
+
+should be used in logic heavy page like list and tables
+
+### In Practice
+
+in practice, a single page is runtime template with fields of compiled template
 
