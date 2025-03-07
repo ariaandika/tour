@@ -169,7 +169,7 @@ fn parse_block(input: ParseStream) -> Result<Block> {
 }
 
 fn parse_expr(input: ParseStream) -> Result<Expr> {
-    if input.peek(token::Brace) {
+    if input.peek(token::Brace) || input.peek(Token![#]) {
         return input.call(parse_block_expr);
     }
 
