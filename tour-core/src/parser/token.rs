@@ -1,10 +1,15 @@
 //! a one dimensional template token unit
 //!
+//! variable:
+//!
 //! ```html
-//! <div>
-//!   {{ }}
-//!   {% %}
-//! </div>
+//! {{ title }}
+//! ```
+//!
+//! layout:
+//!
+//! ```html
+//! {{ layout "index.html" }}
 //! ```
 use std::ops::Range;
 
@@ -134,7 +139,7 @@ impl<'a> Tokenizer<'a> {
             }
         };
 
-        Span::range(start..end)
+        Span::range(start + 1..end - 1)
     }
 
     /// collect literal number
@@ -300,6 +305,17 @@ mod test {
         assert_next!(tokens,src,Ident,"object");
         assert_next!(tokens,src,Punct,"}");
         assert_next!(tokens,src,Static," once { ignored }");
+        assert_next!(tokens);
+    }
+
+    #[test]
+    fn lit_str() {
+        let src = r#"Token {{ include "layout.html" }}"#;
+        let mut tokens = Tokenizer::new(src);
+
+        assert_next!(tokens,src,Static,"Token ");
+        assert_next!(tokens,src,Ident,"include");
+        assert_next!(tokens,src,LitStr,"layout.html");
         assert_next!(tokens);
     }
 
