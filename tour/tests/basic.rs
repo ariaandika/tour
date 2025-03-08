@@ -4,18 +4,51 @@ use tour::render_to;
 #[test]
 fn basic() {
     let mut buffer = String::new();
+    let title = "tasks";
+    let tasks = vec![
+        ("foo","listed",true),
+        ("bar","listed",true),
+        ("baz","listed",true),
+        ("bin","draft",false),
+    ];
 
-    let id = "app";
+    render_to!{&mut buffer, {
+        let _ = title;
+        let Some(_) = title.get(0..4) else {
+            return;
+        };
 
-    render_to!(&mut buffer, {
-        div id={id} {  }
+        #title;
+        println!("Oof");
 
-        for i in id.chars() {
-            div # i;
+        if let Some(_) = title.get(0..2) {
+
         }
 
-    });
+        for _ in title.chars() {
+            div id={title};
+        }
 
-    assert_eq!(&buffer[..],"<div id=\"false\"></div>");
+    }}
+
+    // h1 id={title} # {title}
+    //
+    // for task in &tasks {
+    //     if !task.2 {
+    //         continue;
+    //     }
+    //
+    //     div # {task.0}
+    // }
+
+    assert_eq!(
+        &buffer[..],
+        "\
+        <h1 id=\"tasks\">tasks</h1>\
+        <div>foo</div>\
+        <div>bar</div>\
+        <div>baz</div>\
+        "
+    );
 }
 
