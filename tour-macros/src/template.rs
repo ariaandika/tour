@@ -24,7 +24,7 @@
 //! ```
 use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned, ToTokens};
-use syn::{ext::IdentExt, parse::{Parse, ParseStream}, *};
+use syn::{ext::IdentExt, parse::{Parse, ParseStream}, spanned::Spanned, *};
 
 /// parse template macro
 ///
@@ -51,7 +51,11 @@ impl Parse for Template {
 impl ToTokens for Template {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let Template { writer, stmts, .. } = self;
-        let mut body = quote! { let writer = #writer; };
+        let mut body = quote! {
+            let writer = #writer;
+            let __render = ::tour::Renderer::render;
+            let __render_unsafe = ::tour::Renderer::render_unescaped;
+        };
         to_tokens_stmt(stmts.iter(), &mut body);
         token::Brace::default().surround(tokens, |t|*t=body);
     }
@@ -101,7 +105,7 @@ fn parse_stmt(input: ParseStream) -> Result<Stmt> {
             input.parse::<Token![#]>()?;
             let expr = input.parse::<Expr>()?;
             Stmt::Expr(
-                syn::parse_quote!(#Renderer::render(writer, &#expr)),
+                syn::parse_quote!(__render(writer, &#expr)),
                 input.parse()?
             )
         },
@@ -184,11 +188,11 @@ fn parse_expr(input: ParseStream) -> Result<Expr> {
 
             let mut stmts = vec![];
 
-            stmts.push(syn::parse_quote!(#Renderer::render_unescaped(writer, &#tag);));
+            stmts.push(syn::parse_quote!(__render_unsafe(writer, &#tag);));
             stmts.push(syn::parse_quote!(#(#attrs)*));
-            stmts.push(syn::parse_quote!(#Renderer::render_unescaped(writer, &">");));
+            stmts.push(syn::parse_quote!(__render_unsafe(writer, &">");));
             stmts.push(syn::parse_quote!(#body));
-            stmts.push(syn::parse_quote!(#Renderer::render_unescaped(writer, &#tag_close);));
+            stmts.push(syn::parse_quote!(__render_unsafe(writer, &#tag_close);));
 
             Expr::Block(ExprBlock {
                 attrs: vec![], label: None,
@@ -243,7 +247,7 @@ fn parse_block(input: ParseStream) -> Result<Block> {
                     brace_token: syn::braced!(body in input),
                     stmts: {
                         let expr = Stmt::Expr(body.parse()?, body.parse()?);
-                        vec![syn::parse_quote!(#Renderer::render(writer, &#expr);)]
+                        vec![syn::parse_quote!(__render(writer, &#expr);)]
                     },
                 }
             } else {
@@ -272,19 +276,28 @@ fn parse_attr(input: ParseStream) -> Result<Expr> {
     let val: Option<Expr> = if input.peek(Token![=]) {
         let _eq = input.parse::<Token![=]>()?;
         let val = if input.peek(token::Brace) {
-            Expr::Block(ExprBlock {
-                attrs: vec![],
-                label: None,
-                block: input.parse()?,
-            })
+            let block = input.parse::<Block>()?;
+
+            if block.stmts.len() == 1 {
+                match block.stmts.into_iter().next().unwrap() {
+                    Stmt::Expr(expr, _) => expr,
+                    stmt => return Err(Error::new(stmt.span(), "expected expression"))
+                }
+            } else {
+                Expr::Block(ExprBlock {
+                    attrs: vec![],
+                    label: None,
+                    block,
+                })
+            }
         } else {
-            input.parse()?
+            input.parse::<Expr>()?
         };
 
         Some(syn::parse_quote!({
-            #Renderer::render_unescaped(writer, &"\"");
-            #Renderer::render(writer, &#val);
-            #Renderer::render_unescaped(writer, &"\"");
+            __render_unsafe(writer, &"\"");
+            __render(writer, &#val);
+            __render_unsafe(writer, &"\"");
         }))
     } else {
         None
@@ -293,23 +306,11 @@ fn parse_attr(input: ParseStream) -> Result<Expr> {
     let key_str = format!(" {key}=");
 
     let stream = quote_spanned! {key.span()=>{
-        #Renderer::render_unescaped(writer, &#key_str);
+        __render_unsafe(writer, &#key_str);
         #val
     }
     };
 
     Ok(syn::parse2(stream).expect("deez"))
-}
-
-//
-// Constants
-//
-
-struct Renderer;
-
-impl ToTokens for Renderer {
-    fn to_tokens(&self, tokens: &mut TokenStream) {
-        tokens.extend(quote! { ::tour::Renderer });
-    }
 }
 
