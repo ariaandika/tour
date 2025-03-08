@@ -56,19 +56,8 @@ impl ToTokens for Template {
             let __render = ::tour::Renderer::render;
             let __render_unsafe = ::tour::Renderer::render_unescaped;
         };
-        to_tokens_stmt(stmts.iter(), &mut body);
+        quote! {#(#stmts)*}.to_tokens(&mut body);
         token::Brace::default().surround(tokens, |t|*t=body);
-    }
-}
-
-fn to_tokens_stmt<'a>(stmts: impl Iterator<Item = &'a Stmt>, tokens: &mut TokenStream) {
-    for stmt in stmts {
-        let Stmt::Expr(Expr::Block(ExprBlock { block, .. }), semi) = stmt else {
-            stmt.to_tokens(tokens);
-            continue;
-        };
-        to_tokens_stmt(block.stmts.iter(), tokens);
-        semi.to_tokens(tokens);
     }
 }
 
@@ -126,7 +115,11 @@ fn parse_expr(input: ParseStream) -> Result<Expr> {
             cond: input.call(Expr::parse_without_eager_brace)?.into(),
             then_branch: input.call(parse_block)?,
             else_branch: if input.peek(Token![else]) {
-                Some((input.parse()?, input.call(parse_block_as_expr)?.into()))
+                Some((input.parse()?, Expr::Block(ExprBlock {
+                    attrs: input.call(Attribute::parse_inner)?,
+                    label: input.parse()?,
+                    block: input.call(parse_block)?,
+                }).into()))
             } else {
                 None
             },
@@ -173,26 +166,29 @@ fn parse_expr(input: ParseStream) -> Result<Expr> {
                 },
             })
         }
-        look if look.peek(token::Brace) => input.call(parse_block_as_expr)?,
+        look if look.peek(token::Brace) => Expr::Block(ExprBlock {
+            attrs: input.call(Attribute::parse_inner)?,
+            label: input.parse()?,
+            block: input.call(parse_block)?,
+        }),
         look if look.peek(Ident::peek_any) => {
             let ident = input.parse::<Ident>()?;
             let mut attrs = vec![];
-            while input.peek(Ident) {
+            while input.peek(Ident::peek_any) {
                 attrs.push(input.call(parse_attr)?);
             }
-
             let body = input.call(parse_block)?;
 
             let tag = format!("<{}",ident);
             let tag_close = format!("</{}>",ident);
 
-            let mut stmts = vec![];
-
-            stmts.push(syn::parse_quote!(__render_unsafe(writer, &#tag);));
-            stmts.push(syn::parse_quote!(#(#attrs)*));
-            stmts.push(syn::parse_quote!(__render_unsafe(writer, &">");));
-            stmts.push(syn::parse_quote!(#body));
-            stmts.push(syn::parse_quote!(__render_unsafe(writer, &#tag_close);));
+            let stmts = vec![
+                syn::parse_quote!(__render_unsafe(writer, &#tag);),
+                syn::parse_quote!(#(#attrs)*),
+                syn::parse_quote!(__render_unsafe(writer, &">");),
+                syn::parse_quote!(#body),
+                syn::parse_quote!(__render_unsafe(writer, &#tag_close);),
+            ];
 
             Expr::Block(ExprBlock {
                 attrs: vec![], label: None,
@@ -204,15 +200,6 @@ fn parse_expr(input: ParseStream) -> Result<Expr> {
         }
         look => return Err(look.error()),
     })
-}
-
-/// utility function, parse block with expr as the return type
-fn parse_block_as_expr(input: ParseStream) -> Result<Expr> {
-    Ok(Expr::Block(ExprBlock {
-        attrs: input.call(Attribute::parse_inner)?,
-        label: input.parse()?,
-        block: input.call(parse_block)?,
-    }))
 }
 
 /// a block that may contains template
