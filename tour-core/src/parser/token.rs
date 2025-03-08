@@ -216,7 +216,7 @@ impl Iterator for Tokenizer<'_> {
                             return Some(Token::Ident(self.identifier()));
                         }
                         Some(next) if next.is_ascii_digit() => {
-                            return Some(Token::LitStr(self.digit()));
+                            return Some(Token::LitNum(self.digit()));
                         }
                         Some(next) if next.is_ascii_punctuation() => {
                             self.offset += 1;
