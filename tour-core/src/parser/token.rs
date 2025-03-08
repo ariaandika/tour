@@ -13,6 +13,7 @@
 //! ```
 use std::ops::Range;
 
+/// token emited by [`Tokenizer`]
 pub enum Token {
     /// static template content
     Static(Span),
@@ -30,35 +31,17 @@ impl Token {
     fn span(&self) -> &Span {
         match self {
             Token::Static(span) |
-                Token::Ident(span) |
-                Token::Punct(span) |
-                Token::LitStr(span) |
-                Token::LitNum(span) => span
+            Token::Ident(span) |
+            Token::Punct(span) |
+            Token::LitStr(span) |
+            Token::LitNum(span) => span
         }
     }
-
 }
 
-impl PartialEq<Span> for Token {
-    fn eq(&self, other: &Span) -> bool {
-        self.span() == other
-    }
-}
-
+/// source map of a token
 pub struct Span {
     range: Range<usize>,
-}
-
-impl PartialEq for Span {
-    fn eq(&self, other: &Self) -> bool {
-        &self.range == &other.range
-    }
-}
-
-impl PartialEq<Range<usize>> for Span {
-    fn eq(&self, other: &Range<usize>) -> bool {
-        &self.range == other
-    }
 }
 
 impl Span {
@@ -183,7 +166,7 @@ impl Iterator for Tokenizer<'_> {
                     match self.source.get(current) {
                         Some(&b'{') => {
                             self.state = TokenizerState::OpenExpr { start, brace: current };
-                        },
+                        }
                         Some(_) => {}
                         None => {
                             self.state = TokenizerState::End;
@@ -277,6 +260,28 @@ enum TokenizerState {
     CloseExpr { start: usize },
     Expr,
     End,
+}
+
+mod impls {
+    use super::*;
+
+    impl PartialEq<Span> for Token {
+        fn eq(&self, other: &Span) -> bool {
+            self.span() == other
+        }
+    }
+
+    impl PartialEq for Span {
+        fn eq(&self, other: &Self) -> bool {
+            &self.range == &other.range
+        }
+    }
+
+    impl PartialEq<Range<usize>> for Span {
+        fn eq(&self, other: &Range<usize>) -> bool {
+            &self.range == other
+        }
+    }
 }
 
 #[cfg(test)]
