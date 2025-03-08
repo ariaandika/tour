@@ -23,8 +23,8 @@
 //! });
 //! ```
 use proc_macro2::TokenStream;
-use quote::{quote, quote_spanned, ToTokens};
-use syn::{ext::IdentExt, parse::{Parse, ParseStream}, spanned::Spanned, *};
+use quote::{quote, ToTokens};
+use syn::{ext::IdentExt, parse::{Parse, ParseStream}, *};
 
 /// parse template macro
 ///
@@ -272,45 +272,19 @@ fn parse_block(input: ParseStream) -> Result<Block> {
 }
 
 fn parse_attr(input: ParseStream) -> Result<Expr> {
-    let key = input.call(Ident::parse_any)?;
-    let val: Option<Expr> = if input.peek(Token![=]) {
-        let _eq = input.parse::<Token![=]>()?;
-        let val = if input.peek(token::Brace) {
-            let block = input.parse::<Block>()?;
+    let key = input.call(Ident::parse_any)?.to_string();
 
-            if block.stmts.len() == 1 {
-                match block.stmts.into_iter().next().unwrap() {
-                    Stmt::Expr(expr, _) => expr,
-                    stmt => return Err(Error::new(stmt.span(), "expected expression"))
-                }
-            } else {
-                Expr::Block(ExprBlock {
-                    attrs: vec![],
-                    label: None,
-                    block,
-                })
-            }
-        } else {
-            input.parse::<Expr>()?
-        };
-
-        Some(syn::parse_quote!({
-            __render_unsafe(writer, &"\"");
-            __render(writer, &#val);
-            __render_unsafe(writer, &"\"");
-        }))
-    } else {
-        None
-    };
-
-    let key_str = format!(" {key}=");
-
-    let stream = quote_spanned! {key.span()=>{
-        __render_unsafe(writer, &#key_str);
-        #val
+    if input.parse::<Option<Token![=]>>()?.is_none() {
+        return Ok(syn::parse_quote!(__render_unsafe(writer, #key);))
     }
-    };
 
-    Ok(syn::parse2(stream).expect("deez"))
+    let val = input.call(Expr::parse_without_eager_brace)?;
+    let key_str = format!(" {key}=\"");
+
+    Ok(syn::parse_quote!({
+        __render_unsafe(writer, &#key_str);
+        __render(writer, &#val);
+        __render_unsafe(writer, &"\"");
+    }))
 }
 
