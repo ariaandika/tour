@@ -1,6 +1,14 @@
 //! collection of tokenizer
 //!
-//! `Token {{ expr }} once` = `[Static("Token "), Expr(" expr "), Static(" once")]`
+//! ```
+//! use tour_core::tokenizer::{Tokenizer, Token};
+//! let src = "Token {{ expr { object } }} once { ignored }";
+//! let mut tokenizer = Tokenizer::new(src);
+//! assert_eq!(tokenizer.next(),Some(Token::Static("Token ")));
+//! assert_eq!(tokenizer.next(),Some(Token::Expr("expr { object }")));
+//! assert_eq!(tokenizer.next(),Some(Token::Static(" once { ignored }")));
+//! assert_eq!(tokenizer.next(),None);
+//! ```
 
 /// a tokenizer where the source ownership is hold by the caller
 pub struct Tokenizer<'a> {
