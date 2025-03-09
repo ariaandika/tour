@@ -9,4 +9,5 @@
 //! - token that have rich variants like literal Plus, Equal, Keyword, etc
 //!
 //! note that string literal are usually expressed as single token
+pub mod span;
 pub mod token;

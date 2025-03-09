@@ -11,7 +11,7 @@
 //! ```html
 //! {{ layout "index.html" }}
 //! ```
-use std::ops::Range;
+use super::span::Span;
 
 /// token emited by [`Tokenizer`]
 pub enum Token {
@@ -30,29 +30,12 @@ pub enum Token {
 impl Token {
     fn span(&self) -> &Span {
         match self {
-            Token::Static(span) |
-            Token::Ident(span) |
-            Token::Punct(span) |
-            Token::LitStr(span) |
-            Token::LitNum(span) => span
+            | Token::Static(span)
+            | Token::Ident(span)
+            | Token::Punct(span)
+            | Token::LitStr(span)
+            | Token::LitNum(span) => span
         }
-    }
-}
-
-/// source map of a token
-pub struct Span {
-    range: Range<usize>,
-}
-
-impl Span {
-    pub fn eval<'a>(&self, source: &'a str) -> &'a str {
-        &source[self.range.clone()]
-    }
-    fn range(range: Range<usize>) -> Self {
-        Self { range }
-    }
-    fn offset(offset: usize) -> Self {
-        Self { range: offset..offset + 1 }
     }
 }
 
@@ -60,10 +43,11 @@ pub struct Tokenizer<'a> {
     /// raw source code
     source: &'a [u8],
     offset: usize,
-    state: TokenizerState
+    state: TokenizerState,
 }
 
 impl<'a> Tokenizer<'a> {
+    /// create new [`Tokenizer`]
     pub fn new(source: &'a str) -> Self {
         Self {
             source: source.as_bytes(),
@@ -75,7 +59,6 @@ impl<'a> Tokenizer<'a> {
     /// collect Identifier
     ///
     /// the caller must ensure that current offset is an ascii alphabatic or `_`
-    /// otherwise it will panic in debug mode
     fn identifier(&mut self) -> Span {
         let start = self.offset;
         debug_assert!(matches!(self.source[start],e if e.is_ascii_alphabetic() || e == b'_'));
@@ -101,7 +84,6 @@ impl<'a> Tokenizer<'a> {
     /// collect literal string
     ///
     /// the caller must ensure that current offset is double quote `"`
-    /// otherwise it will panic in debug mode
     fn litstr(&mut self) -> Span {
         let start = self.offset;
         debug_assert!(self.source[start] == b'"');
@@ -128,7 +110,6 @@ impl<'a> Tokenizer<'a> {
     /// collect literal number
     ///
     /// the caller must ensure that current offset is an ascii digit
-    /// otherwise it will panic in debug mode
     fn digit(&mut self) -> Span {
         let start = self.offset;
         debug_assert!(self.source[start].is_ascii_digit());
@@ -257,7 +238,7 @@ impl Iterator for Tokenizer<'_> {
 enum TokenizerState {
     Static { start: usize },
     OpenExpr { start: usize, brace: usize },
-    CloseExpr { start: usize },
+    CloseExpr { start: usize, },
     Expr,
     End,
 }
@@ -268,18 +249,6 @@ mod impls {
     impl PartialEq<Span> for Token {
         fn eq(&self, other: &Span) -> bool {
             self.span() == other
-        }
-    }
-
-    impl PartialEq for Span {
-        fn eq(&self, other: &Self) -> bool {
-            &self.range == &other.range
-        }
-    }
-
-    impl PartialEq<Range<usize>> for Span {
-        fn eq(&self, other: &Range<usize>) -> bool {
-            &self.range == other
         }
     }
 }
