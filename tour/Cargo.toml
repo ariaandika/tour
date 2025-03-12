@@ -5,5 +5,4 @@ edition = "2024"
 
 [dependencies]
 itoa = "1.0.15"
-tour-core = { version = "0.1.0", path = "../tour-core", features = ["full"] }
 tour-macros = { version = "0.1.0", path = "../tour-macros" }

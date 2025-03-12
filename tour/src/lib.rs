@@ -1,3 +1,6 @@
 pub mod render;
-pub use tour_macros::render_to;
-pub use render::Renderer;
+pub mod template;
+
+pub use render::{Render, Renderer};
+pub use template::Template;
+pub use tour_macros::Template;
