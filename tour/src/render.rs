@@ -33,6 +33,12 @@ impl Render for str {
     }
 }
 
+impl Render for &str {
+    fn render(&self, f: &mut impl Renderer) {
+        f.write_str(*self);
+    }
+}
+
 impl Render for String {
     fn render(&self, f: &mut impl Renderer) {
         f.write_str(self);
@@ -62,9 +68,9 @@ render_int!(i64);
 render_int!(i128);
 render_int!(isize);
 
-pub struct Safe<W>(pub W);
+pub struct Escape<W>(pub W);
 
-impl<W> Renderer for Safe<W> where W: Renderer {
+impl<W> Renderer for Escape<W> where W: Renderer {
     fn write_str(&mut self, value: &str) {
         // TODO: escape
         W::write_str(&mut self.0, value);
