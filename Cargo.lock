@@ -3,6 +3,12 @@
 version = 4
 
 [[package]]
+name = "itoa"
+version = "1.0.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a5f13b858c8d314ee3e8f639011f7ccefe71f97f96e50151fb991f267928e2c"
+
+[[package]]
 name = "partial-compile"
 version = "0.1.0"
 dependencies = [
@@ -65,6 +71,7 @@ dependencies = [
 name = "tour"
 version = "0.1.0"
 dependencies = [
+ "itoa",
  "tour-core",
  "tour-macros",
 ]
