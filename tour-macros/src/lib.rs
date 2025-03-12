@@ -1,7 +1,5 @@
 use proc_macro::TokenStream;
 
-mod token;
-mod parser;
 mod template;
 
 #[proc_macro_derive(Template, attributes(template))]

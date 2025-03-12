@@ -48,7 +48,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
             .collect::<Vec<_>>();
 
         let (source,path) = find_source(&args)?;
-        crate::parser::Parser::new(&source, path.as_deref()).parse()?.stmts
+        tour_parser::parser::Parser::new(&source, path.as_deref()).parse()?.stmts
     };
 
     Ok(quote! {
