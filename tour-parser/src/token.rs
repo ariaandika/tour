@@ -6,7 +6,7 @@ pub enum ExprTempl {
     Extends(Extends),
     /// `{{ username }}`
     Expr(Expr),
-    /// `{{ username }}`
+    /// `{{ unsafe body }}`
     Unsafe(UnsafeTempl),
     /// `{{ if admin }}`
     If(IfTempl),
