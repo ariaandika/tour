@@ -8,6 +8,10 @@ pub enum ExprTempl {
     Expr(Expr),
     /// `{{ unsafe body }}`
     Unsafe(UnsafeTempl),
+    /// `{{ block body }}`
+    Block(BlockTempl),
+    /// `{{ block body }}`
+    EndBlock(EndBlockTempl),
     /// `{{ if admin }}`
     If(IfTempl),
     /// `{{ else if superuser }}`
@@ -31,6 +35,18 @@ pub struct Extends {
 pub struct UnsafeTempl {
     pub unsafe_token: Token![unsafe],
     pub expr: Expr,
+}
+
+/// `{{ block body }}`
+pub struct BlockTempl {
+    pub block_token: kw::block,
+    pub name: Ident,
+}
+
+/// `{{ endblock body }}`
+pub struct EndBlockTempl {
+    pub endblock_token: kw::endblock,
+    pub name: Option<Ident>,
 }
 
 /// `{{ if admin }}`
@@ -58,6 +74,8 @@ impl Parse for ExprTempl {
         match () {
             _ if input.peek(kw::extends) => input.parse().map(Self::Extends),
             _ if input.peek(Token![unsafe]) => input.parse().map(Self::Unsafe),
+            _ if input.peek(kw::block) => input.parse().map(Self::Block),
+            _ if input.peek(kw::endblock) => input.parse().map(Self::EndBlock),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
             _ if input.peek(Token![else]) => input.parse().map(Self::Else),
             _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
@@ -82,6 +100,24 @@ impl Parse for UnsafeTempl {
         Ok(Self {
             unsafe_token: input.parse()?,
             expr: input.parse()?,
+        })
+    }
+}
+
+impl Parse for BlockTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            block_token: input.parse()?,
+            name: input.parse()?,
+        })
+    }
+}
+
+impl Parse for EndBlockTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            endblock_token: input.parse()?,
+            name: input.parse()?,
         })
     }
 }
@@ -120,6 +156,8 @@ impl Parse for ForTempl {
 
 mod kw {
     syn::custom_keyword!(extends);
+    syn::custom_keyword!(block);
+    syn::custom_keyword!(endblock);
     syn::custom_keyword!(endif);
     syn::custom_keyword!(endfor);
 }
