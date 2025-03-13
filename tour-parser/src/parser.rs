@@ -4,7 +4,7 @@ use syn::*;
 
 macro_rules! error {
     ($($tt:tt)*) => {
-        return Err(Error::new(proc_macro2::Span::call_site(), format!($($tt)*)))
+        return Err(Error::Generic(format!($($tt)*)))
     };
 }
 
@@ -12,6 +12,7 @@ pub struct Template {
     #[allow(dead_code)]
     pub extends: Vec<String>,
     pub stmts: Vec<Stmt>,
+    pub statics: Vec<String>,
 }
 
 enum Scope {
@@ -70,6 +71,7 @@ pub struct Parser<'a> {
     // templates data
     root: Vec<Stmt>,
     extends: Vec<String>,
+    statics: Vec<String>,
 }
 
 impl<'a> Parser<'a> {
@@ -81,7 +83,8 @@ impl<'a> Parser<'a> {
             state: ParseState::Static { start: 0 },
             extends: vec![],
             root: vec![],
-            scopes: vec![]
+            scopes: vec![],
+            statics: vec![],
         }
     }
 
@@ -141,7 +144,8 @@ impl<'a> Parser<'a> {
 
         Ok(Template {
             extends: self.extends,
-            stmts: self.root
+            stmts: self.root,
+            statics: self.statics,
         })
     }
 
@@ -150,13 +154,17 @@ impl<'a> Parser<'a> {
             return Ok(())
         }
         let source = parse_str(source);
+        let idx = self.statics.len();
+        let src = if cfg!(debug_assertions) {
+            quote! {&sources[#idx]}
+        } else {
+            quote! {#source}
+        };
 
-        self.push_stack(syn::parse_quote! {
-            writer.write_str(#source)?;
-        });
+        self.statics.push(source.to_owned());
 
-        // TODO: read file instead of static str in debug mode
-        // if cfg!(debug_assertions)
+        self.push_stack(syn::parse_quote! { #Render(#src, writer); });
+
         Ok(())
     }
 
@@ -164,7 +172,7 @@ impl<'a> Parser<'a> {
     /// add token stack when encounter starting scope
     /// and pop tokens when scope closes
     fn parse_expr(&mut self, source: &[u8]) -> Result<()> {
-        match syn::parse_str(parse_str(source))? {
+        match syn::parse_str(parse_str(source)).map_err(Error::Syn)? {
             ExprTempl::Extends(source) => {
                 self.extends.push(source.source.value());
             }
@@ -311,6 +319,25 @@ struct Render;
 impl quote::ToTokens for Render {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         quote! {::tour::Render::render}.to_tokens(tokens);
+    }
+}
+
+pub type Result<T,E = Error> = std::result::Result<T,E>;
+
+#[derive(Debug)]
+pub enum Error {
+    Generic(String),
+    Syn(syn::Error),
+}
+
+impl std::error::Error for Error {}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::Generic(s) => f.write_str(s),
+            Error::Syn(error) => error.fmt(f),
+        }
     }
 }
 

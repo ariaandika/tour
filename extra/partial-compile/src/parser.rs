@@ -158,8 +158,6 @@ impl<'a> Parser<'a> {
             writer.write_str(#source)?;
         });
 
-        // TODO: read file instead of static str in debug mode
-        // if cfg!(debug_assertions)
         Ok(())
     }
 
