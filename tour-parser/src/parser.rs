@@ -1,4 +1,4 @@
-use crate::token::{ElseTempl, ExprTempl, ForTempl, IfTempl};
+use crate::token::{ElseTempl, ExprTempl, ForTempl, IfTempl, UnsafeTempl};
 use quote::quote;
 use syn::*;
 
@@ -172,6 +172,11 @@ impl<'a> Parser<'a> {
             ExprTempl::Expr(expr) => {
                 self.push_stack(syn::parse_quote! {
                     #Render(&#expr, &mut ::tour::render::Escape(&mut *writer))?;
+                });
+            }
+            ExprTempl::Unsafe(UnsafeTempl { unsafe_token: _, expr }) => {
+                self.push_stack(syn::parse_quote! {
+                    #Render(&#expr, writer)?;
                 });
             }
             ExprTempl::If(templ) => {

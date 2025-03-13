@@ -6,6 +6,8 @@ pub enum ExprTempl {
     Extends(Extends),
     /// `{{ username }}`
     Expr(Expr),
+    /// `{{ username }}`
+    Unsafe(UnsafeTempl),
     /// `{{ if admin }}`
     If(IfTempl),
     /// `{{ else if superuser }}`
@@ -23,6 +25,12 @@ pub struct Extends {
     #[allow(dead_code)]
     pub extends: kw::extends,
     pub source: LitStr,
+}
+
+/// `{{ unsafe body }}`
+pub struct UnsafeTempl {
+    pub unsafe_token: Token![unsafe],
+    pub expr: Expr,
 }
 
 /// `{{ if admin }}`
@@ -49,6 +57,7 @@ impl Parse for ExprTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         match () {
             _ if input.peek(kw::extends) => input.parse().map(Self::Extends),
+            _ if input.peek(Token![unsafe]) => input.parse().map(Self::Unsafe),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
             _ if input.peek(Token![else]) => input.parse().map(Self::Else),
             _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
@@ -64,6 +73,15 @@ impl Parse for Extends {
         Ok(Self {
             extends: input.parse()?,
             source: input.parse()?,
+        })
+    }
+}
+
+impl Parse for UnsafeTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            unsafe_token: input.parse()?,
+            expr: input.parse()?,
         })
     }
 }
