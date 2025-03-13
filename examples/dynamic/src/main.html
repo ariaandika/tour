@@ -1,4 +1,4 @@
 <div>Token {{ name }} status</div>
 
-{{ for i in 1..4 }} blip: {{ i }} {{ endfor }}
+{{ for i in 1..4 }} blip: {{ i.to_string().get(1..6) }} {{ endfor }}
 

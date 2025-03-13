@@ -45,7 +45,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
         Err(err) => error!("{err}")
     };
 
-    let (tour_parser::Template { extends: _, stmts, statics },path) = {
+    let (tour_parser::Template { stmts, statics },path) = {
         let index = attrs.iter().position(|attr|attr.meta.path().is_ident("template"));
         let Some(attr) = index.map(|e|attrs.swap_remove(e)) else {
             error!("`template` attribute missing")
@@ -128,22 +128,22 @@ fn find_source(args: &Vec<MetaNameValue>) -> Result<(String,Option<String>)> {
         }
     }
 
-    fn read(path: String) -> Result<(String, Option<String>)> {
-        match fs::read_to_string(&path) {
-            Ok(ok) => Ok((ok,Some(path))),
-            Err(err) => error!("failed to read template `{path}`: {err}"),
-        }
-    }
-
     for MetaNameValue { path, value, .. } in args {
         match () {
-            _ if path.is_ident("path") => return read(format!("templates/{}",str_value(value)?)),
-            _ if path.is_ident("root") => return read(str_value(value)?),
+            _ if path.is_ident("path") => return fs_read(str_value(value)?, true),
+            _ if path.is_ident("root") => return fs_read(str_value(value)?, false),
             _ if path.is_ident("source") => return Ok((str_value(value)?,None)),
             _ => continue,
         }
     }
 
     error!("require `path`, `root` or `source`")
+}
+
+fn fs_read(path: String, is_template: bool) -> Result<(String, Option<String>)> {
+    match fs::read_to_string(format!("{}{path}",if is_template { "templates/" } else { "" })) {
+        Ok(ok) => Ok((ok,Some(path))),
+        Err(err) => error!("failed to read template `{path}`: {err}"),
+    }
 }
 

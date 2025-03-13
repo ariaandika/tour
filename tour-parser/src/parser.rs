@@ -1,4 +1,4 @@
-use crate::token::{ElseTempl, ExprTempl, ForTempl, IfTempl, UnsafeTempl};
+use crate::token::*;
 use quote::quote;
 use syn::*;
 
@@ -9,8 +9,6 @@ macro_rules! error {
 }
 
 pub struct Template {
-    #[allow(dead_code)]
-    pub extends: Vec<String>,
     pub stmts: Vec<Stmt>,
     pub statics: Vec<String>,
 }
@@ -68,7 +66,6 @@ pub struct Parser<'a> {
 
     // templates data
     root: Vec<Stmt>,
-    extends: Vec<String>,
     statics: Vec<String>,
 }
 
@@ -78,9 +75,8 @@ impl<'a> Parser<'a> {
             source: source.as_bytes(),
             index: 0,
             state: ParseState::Static { start: 0 },
-            extends: vec![],
-            root: vec![],
             scopes: vec![],
+            root: vec![],
             statics: vec![],
         }
     }
@@ -140,7 +136,6 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Template {
-            extends: self.extends,
             stmts: self.root,
             statics: self.statics,
         })
@@ -166,9 +161,6 @@ impl<'a> Parser<'a> {
     /// and pop tokens when scope closes
     fn parse_expr(&mut self, source: &[u8]) -> Result<()> {
         match syn::parse_str(parse_str(source)).map_err(Error::Syn)? {
-            ExprTempl::Extends(source) => {
-                self.extends.push(source.source.value());
-            }
             ExprTempl::Expr(expr) => {
                 self.push_stack(syn::parse_quote! {
                     #Display(&#expr, &mut ::tour::render::Escape(&mut *writer))?;
