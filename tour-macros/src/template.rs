@@ -17,10 +17,7 @@ macro_rules! error {
 
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
     match &input.data {
-        Data::Struct(data) if data.fields.iter().next().map(|e|e.ident.is_some()).unwrap_or(false) => {
-            template_struct(input)
-        },
-        Data::Struct(_) => error!(input, "named struct only"),
+        Data::Struct(_) => template_struct(input),
         Data::Enum(_) => error!(input, "enum not yet supported"),
         Data::Union(_) => error!(input, "union not supported"),
     }
@@ -31,7 +28,17 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
     let Data::Struct(data) = data else { unreachable!() };
 
     let (g1, g2, g3) = generics.split_for_impl();
-    let fields = data.fields.into_iter().map(|f|f.ident.unwrap());
+
+    let fields = match () {
+        _ if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
+            let fields = data.fields.into_iter().map(|f|f.ident.expect("checked in if guard"));
+            quote! { let #ident { #(#fields)* } = self; }
+        }
+        _ => {
+            // unit struct, or unnamed struct does not destructured
+            quote! { }
+        }
+    };
 
     let cwd = match std::env::current_dir() {
         Ok(ok) => ok,
@@ -97,7 +104,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
         impl #g1 ::tour::Template for #ident #g2 #g3 {
             fn render_into(&self, writer: &mut impl ::tour::Renderer) -> ::tour::template::Result<()> {
                 #include_source
-                let #ident { #(#fields)* } = self;
+                #fields
                 #sources
                 #(#stmts)*
                 Ok(())
