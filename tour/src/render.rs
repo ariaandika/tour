@@ -26,6 +26,13 @@ impl Writer for String {
     }
 }
 
+impl Writer for bytes::BytesMut {
+    fn write_str(&mut self, value: &str) -> Result<()> {
+        bytes::BufMut::put(self, value.as_bytes());
+        Ok(())
+    }
+}
+
 pub trait Display {
     fn display(&self, f: &mut impl Writer) -> Result<()>;
 }
