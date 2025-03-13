@@ -36,6 +36,27 @@ impl<R> Display for &R where R: Display {
     }
 }
 
+impl<T> Display for Option<T> where T: Display {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
+        if let Some(me) = self {
+            T::display(me, f)?;
+        }
+        Ok(())
+    }
+}
+
+impl<T> Display for Box<T> where T: Display {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
+        T::display(self, f)
+    }
+}
+
+impl Display for char {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
+        f.write_str(self.encode_utf8(&mut [0u8;4]))
+    }
+}
+
 impl Display for str {
     fn display(&self, f: &mut impl Writer) -> Result<()> {
         f.write_str(self)
