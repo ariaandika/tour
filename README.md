@@ -2,39 +2,34 @@
 
 HTML Templating in rust
 
-## Problems
+## Another ? What`s the catch ?
 
-- macro based template yield the best performance and memory
-- but recompilation in develpment is annoying
-- runtime based template does not have recompilation time
-- but it bring overhead in engines and memory
+A compiled template where parts of it can be reloaded at runtime in debug mode.
 
-## What Tour template brings
+```rust
+// main.rs
+use tour::Template;
 
-parts of the best of each world, implemented to the best case
+#[derive(Template)]
+#[template(path = "index.html")]
+struct Tasks {
+    tasks: Vec<String>,
+}
 
-- runtime template bring the smallest overhead by having simple rules, resulting no compilation required
-- compiled template provide rich expressions with native performance via macros
+fn main() {
+    let result = Tasks { tasks: vec![] }.render().unwrap();
+    println!("{result}");
+}
+```
+```html
+<!-- templates/index.html -->
+{{ for task in tasks }}
+    full rust syntax here {{ task.get(1..6) }}
+{{ else }}
+    No Tasks
+{{ endfor }}
+```
 
-### Runtime Template
-
-only exists in debug, on release it converted to compiled template
-
-written as separate file
-
-can only render a variable
-
-should be used in content heavy page with less logic like layouts
-
-### Compiled Template
-
-written directly in code
-
-can do pretty much anything rust can do, like pattern matching
-
-should be used in logic heavy page like list and tables
-
-### In Practice
-
-in practice, a single page is runtime template with fields of compiled template
+in debug mode, changing non expression like `No Tasks` in the source file,
+the next render will output the new content
 
