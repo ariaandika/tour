@@ -1,4 +1,4 @@
 [workspace]
-members = [ "extra/partial-compile", "tour","tour-macros", "tour-parser"]
+members = [ "examples/dynamic", "extra/partial-compile", "tour","tour-macros", "tour-parser"]
 default-members = [ "tour","tour-macros","tour-parser"]
 resolver = "2"
