@@ -8,13 +8,15 @@ pub trait Renderer {
 
 impl Renderer for Vec<u8> {
     fn write_str(&mut self, value: &str) -> Result<()> {
-        Ok(self.extend_from_slice(value.as_bytes()))
+        self.extend_from_slice(value.as_bytes());
+        Ok(())
     }
 }
 
 impl Renderer for String {
     fn write_str(&mut self, value: &str) -> Result<()> {
-        Ok(self.push_str(value))
+        self.push_str(value);
+        Ok(())
     }
 }
 
@@ -36,7 +38,7 @@ impl Render for str {
 
 impl Render for &str {
     fn render(&self, f: &mut impl Renderer) -> Result<()> {
-        f.write_str(*self)
+        f.write_str(self)
     }
 }
 
