@@ -17,9 +17,11 @@ struct Page {
 
 fn main() {
     loop {
-        let result = Layout { body: Page { name: "foo".into() } }.render().unwrap();
-        println!("{}",result);
+        let result = Layout {
+            body: Page { name: "<script>alert('foo')</script>".into() }
+        }.render().unwrap();
 
+        println!("{}",result);
         println!("[Press ENTER to re render]");
 
         let mut buf = String::new();
