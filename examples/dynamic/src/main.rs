@@ -14,6 +14,12 @@ struct Page {
     name: String,
 }
 
+#[derive(Template)]
+#[template(source = "<div>Inlined {{ name }}</div>")]
+struct Inline {
+    name: String,
+}
+
 fn main() {
     let path = "home";
 
@@ -23,7 +29,9 @@ fn main() {
             path,
         }.render().unwrap();
 
-        println!("{}",result);
+        let inlined = Inline { name: "foo".into() }.render().unwrap();
+
+        println!("{result}{inlined}");
         println!("[Press ENTER to re render]");
 
         let mut buf = String::new();

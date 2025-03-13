@@ -163,7 +163,11 @@ impl<'a> Parser<'a> {
 
         let source = parse_str(source).to_owned();
         let idx = Index::from(self.statics.len());
-        let src = quote! {&sources[#idx]};
+        let src = if cfg!(debug_assertions) {
+            quote! {&sources[#idx]}
+        } else {
+            quote! {#source}
+        };
 
         self.statics.push(source);
         self.push_stack(syn::parse_quote! { #Display(#src, writer)?; });
@@ -187,23 +191,22 @@ impl<'a> Parser<'a> {
                 });
             }
             ExprTempl::If(templ) => {
-                self.scopes.push(Scope::If {
-                    templ,
-                    stmts: vec![],
-                    else_branch: None,
-                });
+                self.scopes.push(Scope::If { templ, stmts: vec![], else_branch: None, });
             }
+            ExprTempl::For(templ) => {
+                self.scopes.push(Scope::For { templ, stmts: vec![], else_branch: None });
+            }
+
             ExprTempl::Else(ElseTempl { else_token, elif_branch }) => {
                 type ElseBranch = Option<(Token![else], Box<Scope>)>;
 
                 fn take_latest_else_branch(else_branch: &mut ElseBranch) -> Result<&mut ElseBranch> {
                     match else_branch {
                         Some((_, branch)) => match &mut **branch {
-                            // there already else branch
-                            Scope::Root { .. } => error!("invalid double else"),
                             // previously `else if`, we can fill more else branches
                             Scope::If { else_branch, .. } => take_latest_else_branch(else_branch),
-                            _ => panic!("else scope should only contain Root or If"),
+                            Scope::Root { .. } => error!("attempt to add 2 `else`"),
+                            _ => panic!("`else` scope should only contain Root or If"),
                         },
                         // if current else branch is not filled, meancs its the latest
                         None => Ok(else_branch),
@@ -239,8 +242,8 @@ impl<'a> Parser<'a> {
                     Some(scope) => error!("attempt to close `else` in `{scope}` scope"),
                     None => error!("attempt to close `else` in toplevel"),
                 };
-
             }
+
             ExprTempl::EndIf(_endif) => {
                 let (IfTempl { if_token, cond },stmts,else_branch) = match self.scopes.pop() {
                     Some(Scope::If { templ, stmts, else_branch, }) => (templ,stmts,else_branch),
@@ -258,10 +261,6 @@ impl<'a> Parser<'a> {
                     }
                     #else_branch
                 });
-            }
-
-            ExprTempl::For(templ) => {
-                self.scopes.push(Scope::For { templ, stmts: vec![], else_branch: None });
             }
             ExprTempl::EndFor(_endfor) => {
                 let (ForTempl { for_token, pat, in_token, expr },stmts,else_branch) = match self.scopes.pop() {
