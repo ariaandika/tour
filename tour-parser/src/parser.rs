@@ -171,7 +171,7 @@ impl<'a> Parser<'a> {
             }
             ExprTempl::Expr(expr) => {
                 self.push_stack(syn::parse_quote! {
-                    #Render(&#expr, writer)?;
+                    #Render(&#expr, &mut ::tour::render::Escape(&mut *writer))?;
                 });
             }
             ExprTempl::If(templ) => {

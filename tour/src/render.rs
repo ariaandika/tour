@@ -6,6 +6,12 @@ pub trait Renderer {
     fn write_str(&mut self, value: &str) -> Result<()>;
 }
 
+impl<R> Renderer for &mut R where R: Renderer {
+    fn write_str(&mut self, value: &str) -> Result<()> {
+        R::write_str(self, value)
+    }
+}
+
 impl Renderer for Vec<u8> {
     fn write_str(&mut self, value: &str) -> Result<()> {
         self.extend_from_slice(value.as_bytes());
@@ -71,12 +77,43 @@ render_int!(i64);
 render_int!(i128);
 render_int!(isize);
 
+/// wrap Renderer to escape input
+///
+/// escape based on [OWASP recommendation](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
 pub struct Escape<W>(pub W);
 
 impl<W> Renderer for Escape<W> where W: Renderer {
     fn write_str(&mut self, value: &str) -> Result<()> {
-        // TODO: escape
-        W::write_str(&mut self.0, value)
+        let mut latest = 0;
+        let mut iter = value.char_indices();
+
+        loop {
+            let Some((i,ch)) = iter.next() else {
+                break;
+            };
+
+            let escaped = match ch {
+                '&' => "&amp",
+                '<' => "&lt",
+                '>' => "&gt",
+                '"' => "&quot",
+                '\'' => "&#x27",
+                _ => continue,
+            };
+
+            self.0.write_str(&value[latest..i])?;
+            self.0.write_str(escaped)?;
+
+            latest = i + 1;
+        }
+
+        if let Some(value) = value.get(latest..) {
+            if !value.is_empty() {
+                self.0.write_str(value)?;
+            }
+        }
+
+        Ok(())
     }
 }
 
