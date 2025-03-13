@@ -32,7 +32,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
     let fields = match () {
         _ if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
             let fields = data.fields.into_iter().map(|f|f.ident.expect("checked in if guard"));
-            quote! { let #ident { #(#fields)* } = self; }
+            quote! { let #ident { #(#fields),* } = self; }
         }
         _ => {
             // unit struct, or unnamed struct does not destructured

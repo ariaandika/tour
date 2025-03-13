@@ -1,4 +1,5 @@
 <section>
-  <div>Layout</div>
+  <div>Layout {{ path }}</div>
+  {{ if *path == "/home" }}<div>Home</div>{{ endif }}
   {{ unsafe body }}
 </section>

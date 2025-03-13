@@ -1,12 +1,11 @@
 use std::io::{stdin, BufRead};
-
 use tour::Template;
-
 
 #[derive(Template)]
 #[template(root = "examples/dynamic/src/layout.html")]
-struct Layout<T: tour::Render> {
+struct Layout<'a, T: tour::Render> {
     body: T,
+    path: &'a str,
 }
 
 #[derive(Template)]
@@ -16,9 +15,12 @@ struct Page {
 }
 
 fn main() {
+    let path = "home";
+
     loop {
         let result = Layout {
-            body: Page { name: "<script>alert('foo')</script>".into() }
+            body: Page { name: "<script>alert('foo')</script>".into() },
+            path,
         }.render().unwrap();
 
         println!("{}",result);
