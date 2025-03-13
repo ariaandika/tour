@@ -2,8 +2,8 @@ use syn::{parse::{Parse, ParseStream}, *};
 
 /// expression
 pub enum ExprTempl {
-    /// `{{ extends "index.html" }}`
-    Extends(Extends),
+    /// `{{ layout "index.html" }}`
+    Layout(Layout),
     /// `{{ username }}`
     Expr(Expr),
     /// `{{ unsafe body }}`
@@ -24,10 +24,10 @@ pub enum ExprTempl {
     EndFor(kw::endfor),
 }
 
-/// `{{ extends "index.html" }}`
-pub struct Extends {
+/// `{{ layout "index.html" }}`
+pub struct Layout {
     #[allow(dead_code)]
-    pub extends: kw::extends,
+    pub layout: kw::layout,
     pub source: LitStr,
 }
 
@@ -72,7 +72,7 @@ pub struct ForTempl {
 impl Parse for ExprTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         match () {
-            _ if input.peek(kw::extends) => input.parse().map(Self::Extends),
+            _ if input.peek(kw::layout) => input.parse().map(Self::Layout),
             _ if input.peek(Token![unsafe]) => input.parse().map(Self::Unsafe),
             _ if input.peek(kw::block) => input.parse().map(Self::Block),
             _ if input.peek(kw::endblock) => input.parse().map(Self::EndBlock),
@@ -86,10 +86,10 @@ impl Parse for ExprTempl {
     }
 }
 
-impl Parse for Extends {
+impl Parse for Layout {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
-            extends: input.parse()?,
+            layout: input.parse()?,
             source: input.parse()?,
         })
     }
@@ -155,7 +155,7 @@ impl Parse for ForTempl {
 }
 
 mod kw {
-    syn::custom_keyword!(extends);
+    syn::custom_keyword!(layout);
     syn::custom_keyword!(block);
     syn::custom_keyword!(endblock);
     syn::custom_keyword!(endif);
