@@ -103,6 +103,12 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
                 Ok(())
             }
         }
+
+        impl #g1 ::tour::Render for #ident #g2 #g3 {
+            fn render(&self, f: &mut impl ::tour::Renderer) -> ::tour::template::Result<()> {
+                self.render_into(f)
+            }
+        }
     })
 }
 
