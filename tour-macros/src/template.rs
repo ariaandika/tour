@@ -115,27 +115,22 @@ fn find_source(args: &Vec<MetaNameValue>) -> Result<(String,Option<String>)> {
         }
     }
 
+    fn read(path: String) -> Result<(String, Option<String>)> {
+        match fs::read_to_string(&path) {
+            Ok(ok) => Ok((ok,Some(path))),
+            Err(err) => error!("failed to read template `{path}`: {err}"),
+        }
+    }
+
     for MetaNameValue { path, value, .. } in args {
         match () {
-            _ if path.is_ident("path") => {
-                let path = format!("templates/{}",str_value(value)?);
-                return match fs::read_to_string(&path) {
-                    Ok(ok) => Ok((ok,Some(path))),
-                    Err(err) => error!("failed to read template `{path}`: {err}"),
-                }
-            },
-            _ if path.is_ident("root") => {
-                let path = str_value(value)?;
-                return match fs::read_to_string(&path) {
-                    Ok(ok) => Ok((ok,Some(path))),
-                    Err(err) => error!("failed to read template `{path}`: {err}"),
-                }
-            },
+            _ if path.is_ident("path") => return read(format!("templates/{}",str_value(value)?)),
+            _ if path.is_ident("root") => return read(str_value(value)?),
             _ if path.is_ident("source") => return Ok((str_value(value)?,None)),
             _ => continue,
         }
     }
 
-    error!("required `path`, `root` or `source`")
+    error!("require `path`, `root` or `source`")
 }
 
