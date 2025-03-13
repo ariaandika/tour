@@ -102,7 +102,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
 
     Ok(quote! {
         impl #g1 ::tour::Template for #ident #g2 #g3 {
-            fn render_into(&self, writer: &mut impl ::tour::Renderer) -> ::tour::template::Result<()> {
+            fn render_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::template::Result<()> {
                 #include_source
                 #fields
                 #sources
@@ -111,8 +111,8 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
             }
         }
 
-        impl #g1 ::tour::Render for #ident #g2 #g3 {
-            fn render(&self, f: &mut impl ::tour::Renderer) -> ::tour::template::Result<()> {
+        impl #g1 ::tour::Display for #ident #g2 #g3 {
+            fn display(&self, f: &mut impl ::tour::Writer) -> ::tour::template::Result<()> {
                 self.render_into(f)
             }
         }

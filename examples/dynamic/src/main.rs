@@ -3,7 +3,7 @@ use tour::Template;
 
 #[derive(Template)]
 #[template(root = "examples/dynamic/src/layout.html")]
-struct Layout<'a, T: tour::Render> {
+struct Layout<'a, T: tour::Display> {
     body: T,
     path: &'a str,
 }

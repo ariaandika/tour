@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
 
         self.statics.push(source.to_owned());
 
-        self.push_stack(syn::parse_quote! { #Render(#src, writer)?; });
+        self.push_stack(syn::parse_quote! { #Display(#src, writer)?; });
 
         Ok(())
     }
@@ -171,12 +171,12 @@ impl<'a> Parser<'a> {
             }
             ExprTempl::Expr(expr) => {
                 self.push_stack(syn::parse_quote! {
-                    #Render(&#expr, &mut ::tour::render::Escape(&mut *writer))?;
+                    #Display(&#expr, &mut ::tour::render::Escape(&mut *writer))?;
                 });
             }
             ExprTempl::Unsafe(UnsafeTempl { unsafe_token: _, expr }) => {
                 self.push_stack(syn::parse_quote! {
-                    #Render(&#expr, writer)?;
+                    #Display(&#expr, writer)?;
                 });
             }
             ExprTempl::If(templ) => {
@@ -312,11 +312,11 @@ fn parse_str(v: &[u8]) -> &str {
     unsafe { core::str::from_utf8_unchecked(v) }
 }
 
-struct Render;
+struct Display;
 
-impl quote::ToTokens for Render {
+impl quote::ToTokens for Display {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        quote! {::tour::Render::render}.to_tokens(tokens);
+        quote! {::tour::Display::display}.to_tokens(tokens);
     }
 }
 

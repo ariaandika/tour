@@ -1,63 +1,63 @@
-//! the [`Render`] trait
+//! the [`TourDisplay`] trait
 use crate::template::Result;
 
-pub trait Renderer {
+pub trait Writer {
     /// render a buffer with escapes
     fn write_str(&mut self, value: &str) -> Result<()>;
 }
 
-impl<R> Renderer for &mut R where R: Renderer {
+impl<R> Writer for &mut R where R: Writer {
     fn write_str(&mut self, value: &str) -> Result<()> {
         R::write_str(self, value)
     }
 }
 
-impl Renderer for Vec<u8> {
+impl Writer for Vec<u8> {
     fn write_str(&mut self, value: &str) -> Result<()> {
         self.extend_from_slice(value.as_bytes());
         Ok(())
     }
 }
 
-impl Renderer for String {
+impl Writer for String {
     fn write_str(&mut self, value: &str) -> Result<()> {
         self.push_str(value);
         Ok(())
     }
 }
 
-pub trait Render {
-    fn render(&self, f: &mut impl Renderer) -> Result<()>;
+pub trait Display {
+    fn display(&self, f: &mut impl Writer) -> Result<()>;
 }
 
-impl<R> Render for &R where R: Render {
-    fn render(&self, f: &mut impl Renderer) -> Result<()> {
-        R::render(*self, f)
+impl<R> Display for &R where R: Display {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
+        R::display(*self, f)
     }
 }
 
-impl Render for str {
-    fn render(&self, f: &mut impl Renderer) -> Result<()> {
+impl Display for str {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
         f.write_str(self)
     }
 }
 
-impl Render for &str {
-    fn render(&self, f: &mut impl Renderer) -> Result<()> {
+impl Display for &str {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
         f.write_str(self)
     }
 }
 
-impl Render for String {
-    fn render(&self, f: &mut impl Renderer) -> Result<()> {
+impl Display for String {
+    fn display(&self, f: &mut impl Writer) -> Result<()> {
         f.write_str(self)
     }
 }
 
 macro_rules! render_int {
     ($t:ty) => {
-        impl Render for $t {
-            fn render(&self, f: &mut impl Renderer) -> Result<()> {
+        impl Display for $t {
+            fn display(&self, f: &mut impl Writer) -> Result<()> {
                 f.write_str(itoa::Buffer::new().format(*self))
             }
         }
@@ -82,7 +82,7 @@ render_int!(isize);
 /// escape based on [OWASP recommendation](https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html)
 pub struct Escape<W>(pub W);
 
-impl<W> Renderer for Escape<W> where W: Renderer {
+impl<W> Writer for Escape<W> where W: Writer {
     fn write_str(&mut self, value: &str) -> Result<()> {
         let mut latest = 0;
         let mut iter = value.char_indices();

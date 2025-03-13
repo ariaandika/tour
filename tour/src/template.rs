@@ -1,7 +1,7 @@
-use crate::Renderer;
+use crate::Writer;
 
 pub trait Template {
-    fn render_into(&self, render: &mut impl Renderer) -> Result<()>;
+    fn render_into(&self, render: &mut impl Writer) -> Result<()>;
 
     fn render(&self) -> Result<String> {
         let mut buffer = String::with_capacity(1024);
