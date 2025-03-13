@@ -156,7 +156,7 @@ impl<'a> Parser<'a> {
 
         self.statics.push(source.to_owned());
 
-        self.push_stack(syn::parse_quote! { #Render(#src, writer); });
+        self.push_stack(syn::parse_quote! { #Render(#src, writer)?; });
 
         Ok(())
     }
@@ -171,7 +171,7 @@ impl<'a> Parser<'a> {
             }
             ExprTempl::Expr(expr) => {
                 self.push_stack(syn::parse_quote! {
-                    #Render(&#expr, writer);
+                    #Render(&#expr, writer)?;
                 });
             }
             ExprTempl::If(templ) => {
