@@ -38,7 +38,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
         Err(err) => error!("{err}")
     };
 
-    let (tour_parser::Template { extends: _, stmts, statics: _ },path) = {
+    let (tour_parser::Template { extends: _, stmts, statics },path) = {
         let index = attrs.iter().position(|attr|attr.meta.path().is_ident("template"));
         let Some(attr) = index.map(|e|attrs.swap_remove(e)) else {
             error!("`template` attribute missing")
@@ -53,7 +53,7 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
             .collect::<Vec<_>>();
 
         let (source,path) = find_source(&args)?;
-        let result = tour_parser::parser::Parser::new(&source, path.as_deref()).parse();
+        let result = tour_parser::parser::Parser::new(&source).parse();
         let template = match result {
             Ok(ok) => ok,
             Err(err) => return Err(match err {
@@ -74,26 +74,31 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
         None => None,
     };
 
-    let debug_fs_read = {
-        let path = match path {
-            Some(path) => {
-                let cwd = cwd.join(path);
-                cwd.to_string_lossy().to_string()
-            },
-            None => "INLINED".to_owned(),
-        };
-        quote! {
-            #[cfg(debug_assertions)]
-            let sources = ::tour::Parser::new(&::std::fs::read_to_string(#path)?,Some(#path)).parse()?.statics;
+    let sources = {
+        let is_dynamic = path.is_some() && cfg!(debug_assertions);
+
+        match is_dynamic {
+            true => {
+                let path = cwd.join(path.unwrap()).to_string_lossy().to_string();
+                quote! {
+                    let sources = ::tour::Parser::new(&::std::fs::read_to_string(#path)?).parse()?.statics;
+                }
+            }
+            false => {
+                let statics: Expr = syn::parse_quote!([#(#statics),*]);
+                quote! {
+                    let sources = #statics;
+                }
+            }
         }
     };
 
     Ok(quote! {
         impl #g1 ::tour::Template for #ident #g2 #g3 {
             fn render_into(&self, writer: &mut impl ::tour::Renderer) -> ::tour::template::Result<()> {
-                #debug_fs_read
                 #include_source
                 let #ident { #(#fields)* } = self;
+                #sources
                 #(#stmts)*
                 Ok(())
             }

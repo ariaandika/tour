@@ -60,8 +60,6 @@ enum ParseState {
 
 pub struct Parser<'a> {
     source: &'a [u8],
-    #[allow(dead_code)]
-    path: Option<&'a str>,
     index: usize,
     state: ParseState,
 
@@ -75,10 +73,9 @@ pub struct Parser<'a> {
 }
 
 impl<'a> Parser<'a> {
-    pub fn new(source: &'a str, path: Option<&'a str>) -> Self {
+    pub fn new(source: &'a str) -> Self {
         Self {
             source: source.as_bytes(),
-            path,
             index: 0,
             state: ParseState::Static { start: 0 },
             extends: vec![],
@@ -155,11 +152,7 @@ impl<'a> Parser<'a> {
         }
         let source = parse_str(source);
         let idx = self.statics.len();
-        let src = if cfg!(debug_assertions) {
-            quote! {&sources[#idx]}
-        } else {
-            quote! {#source}
-        };
+        let src = quote! {&sources[#idx]};
 
         self.statics.push(source.to_owned());
 
