@@ -1,3 +1,4 @@
+//! tour template
 pub mod render;
 pub mod template;
 

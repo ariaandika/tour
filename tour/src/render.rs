@@ -1,4 +1,4 @@
-//! the [`TourDisplay`] trait
+//! the [`Display`] and [`Writer`] trait
 use crate::template::Result;
 
 pub trait Writer {

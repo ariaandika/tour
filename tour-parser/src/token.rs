@@ -1,6 +1,10 @@
+//! parse expression in template
+//!
+//! this module only provide parsing any possibles
+//! expression through `Parse` implementation of [`ExprTempl`]
 use syn::{parse::{Parse, ParseStream}, *};
 
-/// expression
+/// template expressions
 pub enum ExprTempl {
     /// `{{ username }}`
     Expr(Expr),
@@ -30,7 +34,7 @@ pub struct IfTempl {
     pub cond: Expr,
 }
 
-/// `{{ if admin }}`
+/// `{{ else if superuser }}`
 pub struct ElseTempl {
     pub else_token: Token![else],
     pub elif_branch: Option<(Token![if],Expr)>

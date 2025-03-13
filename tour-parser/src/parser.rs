@@ -1,3 +1,9 @@
+//! template source code parser
+//!
+//! use [`Parser`] to parse source code which output a [`Template`]
+//!
+//! template then can be generated to static source code at compile time
+//! or static content at runtime
 use crate::token::*;
 use quote::quote;
 use syn::*;
@@ -8,8 +14,14 @@ macro_rules! error {
     };
 }
 
+/// parse output
+///
+/// template then can be generated to static source code at compile time
+/// or static content at runtime
 pub struct Template {
+    /// rust statements which render and logic
     pub stmts: Vec<Stmt>,
+    /// static contents
     pub statics: Vec<String>,
 }
 
@@ -56,20 +68,22 @@ enum ParseState {
     CloseExpr { start: usize, brace: usize, },
 }
 
+/// template source code parser
 pub struct Parser<'a> {
     source: &'a [u8],
+
+    // parser states
     index: usize,
     state: ParseState,
-
-    /// represent nested scopes
     scopes: Vec<Scope>,
 
-    // templates data
+    // template data
     root: Vec<Stmt>,
     statics: Vec<String>,
 }
 
 impl<'a> Parser<'a> {
+    /// create new [`Parser`]
     pub fn new(source: &'a str) -> Self {
         Self {
             source: source.as_bytes(),
@@ -88,6 +102,7 @@ impl<'a> Parser<'a> {
         }.push(stmt);
     }
 
+    /// start parsing
     pub fn parse(mut self) -> Result<Template> {
         loop {
             let current = self.index;
@@ -145,12 +160,12 @@ impl<'a> Parser<'a> {
         if source.is_empty() {
             return Ok(())
         }
-        let source = parse_str(source);
-        let idx = self.statics.len();
+
+        let source = parse_str(source).to_owned();
+        let idx = Index::from(self.statics.len());
         let src = quote! {&sources[#idx]};
 
-        self.statics.push(source.to_owned());
-
+        self.statics.push(source);
         self.push_stack(syn::parse_quote! { #Display(#src, writer)?; });
 
         Ok(())
@@ -312,8 +327,10 @@ impl quote::ToTokens for Display {
     }
 }
 
+/// parsing result alias
 pub type Result<T,E = Error> = std::result::Result<T,E>;
 
+/// parsing error
 #[derive(Debug)]
 pub enum Error {
     Generic(String),
