@@ -3,6 +3,11 @@ use std::io::{stdin, BufRead};
 use tour::Template;
 
 
+#[derive(Template)]
+#[template(root = "examples/dynamic/src/layout.html")]
+struct Layout<T: tour::Render> {
+    body: T,
+}
 
 #[derive(Template)]
 #[template(root = "examples/dynamic/src/main.html")]
@@ -12,7 +17,7 @@ struct Page {
 
 fn main() {
     loop {
-        let result = Page { name: "foo".into() }.render().unwrap();
+        let result = Layout { body: Page { name: "foo".into() } }.render().unwrap();
         println!("{}",result);
 
         println!("[Press ENTER to re render]");
