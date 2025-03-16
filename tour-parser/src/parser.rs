@@ -19,6 +19,7 @@ macro_rules! error {
 /// template then can be generated to static source code at compile time
 /// or static content at runtime
 pub struct Template {
+    pub layout: Option<LayoutTempl>,
     /// rust statements which render and logic
     pub stmts: Vec<Stmt>,
     /// static contents
@@ -78,6 +79,7 @@ pub struct Parser<'a> {
     scopes: Vec<Scope>,
 
     // template data
+    layout: Option<LayoutTempl>,
     root: Vec<Stmt>,
     statics: Vec<String>,
 }
@@ -90,6 +92,7 @@ impl<'a> Parser<'a> {
             index: 0,
             state: ParseState::Static { start: 0 },
             scopes: vec![],
+            layout: None,
             root: vec![],
             statics: vec![],
         }
@@ -151,6 +154,7 @@ impl<'a> Parser<'a> {
         }
 
         Ok(Template {
+            layout: self.layout,
             stmts: self.root,
             statics: self.statics,
         })
@@ -180,6 +184,17 @@ impl<'a> Parser<'a> {
     /// and pop tokens when scope closes
     fn parse_expr(&mut self, source: &[u8]) -> Result<()> {
         match syn::parse_str(parse_str(source)).map_err(Error::Syn)? {
+            ExprTempl::Layout(layout) => {
+                if self.layout.is_some() {
+                    error!("attempt to add 2 `layout`")
+                }
+                self.layout.replace(layout);
+            }
+            ExprTempl::Yield(_yield) => {
+                self.push_stack(syn::parse_quote! {
+                    #Display(&layout_inner, &mut *writer)?;
+                });
+            }
             ExprTempl::Expr(expr) => {
                 self.push_stack(syn::parse_quote! {
                     #Display(&#expr, &mut ::tour::render::Escape(&mut *writer))?;

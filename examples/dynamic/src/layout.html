@@ -1,5 +1,5 @@
 <section>
-  <div>Layout {{ path }}</div>
-  {{ if *path == "/home" }}<div>Home</div>{{ endif }}
-  {{ unsafe body }}
+  <div>Layout { path }</div>
+  { if *path == "/home" }<div>Home</div>{ endif }
+  {{ yield }}
 </section>

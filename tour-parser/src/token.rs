@@ -6,6 +6,10 @@ use syn::{parse::{Parse, ParseStream}, *};
 
 /// template expressions
 pub enum ExprTempl {
+    /// `{{ layout "layout.html" }}`
+    Layout(LayoutTempl),
+    /// `{{ layout "layout.html" }}`
+    Yield(Token![yield]),
     /// `{{ username }}`
     Expr(Expr),
     /// `{{ unsafe body }}`
@@ -20,6 +24,13 @@ pub enum ExprTempl {
     For(ForTempl),
     /// `{{ endfor }}`
     EndFor(kw::endfor),
+}
+
+/// `{{ layout "layout.html" }}`
+pub struct LayoutTempl {
+    pub layout_token: kw::layout,
+    pub root_token: Option<kw::root>,
+    pub source: LitStr,
 }
 
 /// `{{ unsafe body }}`
@@ -51,6 +62,8 @@ pub struct ForTempl {
 impl Parse for ExprTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         match () {
+            _ if input.peek(kw::layout) => input.parse().map(Self::Layout),
+            _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
             _ if input.peek(Token![unsafe]) => input.parse().map(Self::Unsafe),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
             _ if input.peek(Token![else]) => input.parse().map(Self::Else),
@@ -59,6 +72,16 @@ impl Parse for ExprTempl {
             _ if input.peek(kw::endfor) => input.parse().map(Self::EndFor),
             _ => input.parse().map(Self::Expr),
         }
+    }
+}
+
+impl Parse for LayoutTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            layout_token: input.parse()?,
+            root_token: input.parse()?,
+            source: input.parse()?,
+        })
     }
 }
 
@@ -104,6 +127,8 @@ impl Parse for ForTempl {
 }
 
 mod kw {
+    syn::custom_keyword!(layout);
+    syn::custom_keyword!(root);
     syn::custom_keyword!(endif);
     syn::custom_keyword!(endfor);
 }

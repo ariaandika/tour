@@ -1,7 +1,8 @@
-use std::fs;
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::quote;
+use std::fs;
 use syn::{punctuated::Punctuated, spanned::Spanned, *};
+use tour_parser::{parser::{self, Parser}, token::LayoutTempl, Template};
 
 macro_rules! error {
     (@ $s:expr, $($tt:tt)*) => {
@@ -23,7 +24,7 @@ macro_rules! error {
         error!(@ $s.span(), $($tt)*)
     };
     ($($tt:tt)*) => {
-        error!(@ proc_macro2::Span::call_site(), $($tt)*)
+        error!(@ Span::call_site(), $($tt)*)
     };
 }
 
@@ -67,26 +68,28 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
     };
 
     // the template
-    let tour_parser::Template { stmts, statics } = match tour_parser::parser::Parser::new(&source).parse() {
+    let Template { layout, stmts, statics } = match Parser::new(&source).parse() {
         Ok(ok) => ok,
         Err(err) => return Err(match err {
-            tour_parser::parser::Error::Generic(err) => Error::new(proc_macro2::Span::call_site(), err),
-            tour_parser::parser::Error::Syn(error) => error,
+            parser::Error::Generic(err) => Error::new(Span::call_site(), err),
+            parser::Error::Syn(error) => error,
         })
     };
 
     // sources, array of string containing static content
     let sources = {
         match (path.is_some(), cfg!(debug_assertions)) {
-            (true,true) => quote!{
-                let sources = ::tour::Parser::new(&::std::fs::read_to_string(#path)?).parse()?.statics;
-            },
-            (false, true) => quote!{
-                let sources = [#(#statics),*];
-            },
-            (true,false) |
-            (false,false) => quote! { }
+            (true,true) => quote!{ let sources = ::tour::Parser::new(&::std::fs::read_to_string(#path)?).parse()?.statics; },
+            (false, true) => quote!{ let sources = [#(#statics),*]; },
+            (true,false) | (false,false) => quote! { }
         }
+    };
+
+    let layout = match layout {
+        Some(layout) => template_layout(layout)?,
+        None => quote! {{
+            self.render_into(writer)
+        }},
     };
 
     Ok(quote! {
@@ -98,6 +101,9 @@ fn template_struct(input: DeriveInput) -> Result<TokenStream> {
                 #(#stmts)*
                 Ok(())
             }
+
+            fn render_layout_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::template::Result<()>
+                #layout
         }
 
         impl #g1 ::tour::Display for #ident #g2 #g3 {
@@ -132,19 +138,6 @@ fn find_source(attrs: &Vec<MetaNameValue>) -> Result<(String,Option<String>)> {
         }
     }
 
-    fn fs_read(path: String, is_template: bool) -> Result<(String, Option<String>)> {
-        let mut abs_path = error!(!std::env::current_dir());
-        if is_template {
-            abs_path.push("templates")
-        }
-        abs_path.push(&path);
-        let path = error!(!abs_path.to_str(),"non utf8 path").to_owned();
-        match fs::read_to_string(&path) {
-            Ok(ok) => Ok((ok,Some(path))),
-            Err(err) => error!("failed to read template `{path}`: {err}"),
-        }
-    }
-
     for MetaNameValue { path, value, .. } in attrs {
         match () {
             _ if path.is_ident("path") => return fs_read(str_value(value)?, true),
@@ -155,5 +148,61 @@ fn find_source(attrs: &Vec<MetaNameValue>) -> Result<(String,Option<String>)> {
     }
 
     error!("require `path`, `root` or `source`")
+}
+
+fn template_layout(templ: LayoutTempl) -> Result<TokenStream> {
+    let LayoutTempl { layout_token: _, root_token, source } = templ;
+    let (source,path) = fs_read(source.value(), root_token.is_none())?;
+
+    // include_source, for file template, an `include_str` to trigger recompile on template change
+    let include_source = path.as_ref().map(|path|quote!{const _: &str = include_str!(#path);});
+
+    // the template
+    let Template { layout, stmts, statics } = match Parser::new(&source).parse() {
+        Ok(ok) => ok,
+        Err(err) => return Err(match err {
+            parser::Error::Generic(err) => Error::new(Span::call_site(), err),
+            parser::Error::Syn(error) => error,
+        })
+    };
+
+    // sources, array of string containing static content
+    let sources = {
+        match (path.is_some(), cfg!(debug_assertions)) {
+            (true,true) => quote!{ let sources = ::tour::Parser::new(&::std::fs::read_to_string(#path)?).parse()?.statics; },
+            (false, true) => quote!{ let sources = [#(#statics),*]; },
+            (true,false) | (false,false) => quote! { }
+        }
+    };
+
+    if layout.is_some() {
+        error!("layout in layout is not yet supported")
+    }
+
+    // layout specific `yield` interpretation
+    let layout_inner = quote! {
+        let layout_inner = &*self;
+    };
+
+    Ok(quote! {{
+        #include_source
+        #layout_inner
+        #sources
+        #(#stmts)*
+        Ok(())
+    }})
+}
+
+fn fs_read(path: String, is_template: bool) -> Result<(String, Option<String>)> {
+    let mut abs_path = error!(!std::env::current_dir());
+    if is_template {
+        abs_path.push("templates")
+    }
+    abs_path.push(&path);
+    let path = error!(!abs_path.to_str(),"non utf8 path").to_owned();
+    match fs::read_to_string(&path) {
+        Ok(ok) => Ok((ok,Some(path))),
+        Err(err) => error!("failed to read template `{path}`: {err}"),
+    }
 }
 
