@@ -1,10 +1,6 @@
 # Tour
 
-HTML Templating in rust
-
-## Another ? What`s the catch ?
-
-A compiled template where parts of it can be reloaded at runtime in debug mode.
+A rust compiled template where parts of it can be reloaded at runtime in debug mode.
 
 ```rust
 // main.rs
@@ -32,4 +28,11 @@ fn main() {
 
 in debug mode, changing non expression like `No Tasks` in the source file,
 the next render will output the new content
+
+## TODO
+
+- make auto-reload as cargo feature
+- add support for layout in layout
+- add `allow(unused)` in destructured field
+- add `{! body !}` to prevent escape
 
