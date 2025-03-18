@@ -24,7 +24,7 @@ pub type Result<T,E = Error> = std::result::Result<T,E>;
 
 #[derive(Debug)]
 pub enum Error {
-    Parse(tour_parser::parser::Error),
+    Parse(tour_parser::Error),
     Io(std::io::Error),
 }
 
@@ -39,8 +39,8 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-impl From<tour_parser::parser::Error> for Error {
-    fn from(value: tour_parser::parser::Error) -> Self {
+impl From<tour_parser::Error> for Error {
+    fn from(value: tour_parser::Error) -> Self {
         Self::Parse(value)
     }
 }
