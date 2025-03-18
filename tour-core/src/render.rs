@@ -1,5 +1,5 @@
 //! the [`Display`] and [`Writer`] trait
-use crate::template::Result;
+use crate::Result;
 
 pub trait Writer {
     /// render a buffer with escapes

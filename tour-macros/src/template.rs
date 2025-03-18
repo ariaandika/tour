@@ -43,7 +43,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let reload = find_reload(&attrs)?;
 
     // 1. include_source, for file template, an `include_str` to trigger recompile on template change
-    let include_source = path.as_ref().map(|path|quote!{const _: &str=include_str!(#path);});
+    let include_source = generate::include_source(&path);
 
     // 2. destructor, for named fields, destructor for convenient
     let destructor = match data {
@@ -56,41 +56,10 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     };
 
     // the template
-    let ok = match Parser::new(&source,SynParser::new(reload)).parse() {
-        Ok(ok) => ok,
-        Err(parser::Error::Generic(err)) => error!("{err}"),
-    };
-    let Template { output: SynOutput { layout, stmts, reload }, statics } = ok;
+    let Template { output: SynOutput { layout, stmts, reload }, statics } = generate::template(&source, reload)?;
 
     // 3. sources, array of string containing static content
-    let sources: &[_] = {
-        match (path.is_some(), reload.as_bool()) {
-            (true,Ok(true)) => &[
-                quote!{ let sources = ::std::fs::read_to_string(#path)?; },
-                quote!{ let sources = ::tour::Parser::new(&sources,::tour::NoopParser).parse()?.statics; },
-            ],
-            (true,Ok(false)) | (false,Ok(false)) => &[],
-            (true, Err(cond)) => &[
-                quote! {
-                    let sources = if #cond {
-                        ::std::fs::read_to_string(#path)?
-                    } else {
-                        String::new()
-                    };
-                },
-                quote! {
-                    #[allow(unused_variables)]
-                    let sources = if #cond {
-                        ::tour::Parser::new(&sources,::tour::NoopParser).parse()?.statics
-                    } else {
-                        []
-                    };
-                }
-            ],
-            (false, _) => &[quote!{ let sources = [#(#statics),*]; }],
-        }
-    };
-
+    let sources = generate::sources(&path, &reload, &statics);
 
     let layout = match layout {
         Some(layout) => template_layout(layout, reload)?,
@@ -101,7 +70,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 
     Ok(quote! {
         impl #g1 ::tour::Template for #ident #g2 #g3 {
-            fn render_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::template::Result<()> {
+            fn render_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()> {
                 #include_source
                 #destructor
                 #(#sources)*
@@ -109,16 +78,49 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                 Ok(())
             }
 
-            fn render_layout_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::template::Result<()>
+            fn render_layout_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()>
                 #layout
         }
 
         impl #g1 ::tour::Display for #ident #g2 #g3 {
-            fn display(&self, f: &mut impl ::tour::Writer) -> ::tour::template::Result<()> {
+            fn display(&self, f: &mut impl ::tour::Writer) -> ::tour::Result<()> {
                 self.render_into(f)
             }
         }
     })
+}
+
+fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
+    let LayoutInfo { source, is_root } = templ;
+    let (source,path) = fs_read(source, !is_root)?;
+
+    // 1. include_source, for file template, an `include_str` to trigger recompile on template change
+    let include_source = generate::include_source(&path);
+
+    // 2. destructor, no destructor in layout
+
+    // the template
+    let Template { output: SynOutput { layout, stmts, reload }, statics } = generate::template(&source, reload)?;
+
+    // 3. sources, array of string containing static content
+    let sources = generate::sources(&path, &reload, &statics);
+
+    if layout.is_some() {
+        error!("TODO: layout in layout is not yet supported")
+    }
+
+    // layout specific `yield` interpretation
+    let layout_inner = quote! {
+        let layout_inner = &*self;
+    };
+
+    Ok(quote! {{
+        #include_source
+        #layout_inner
+        #(#sources)*
+        #(#stmts)*
+        Ok(())
+    }})
 }
 
 fn find_template_attr(mut attrs: Vec<Attribute>) -> Result<Vec<MetaNameValue>> {
@@ -195,29 +197,28 @@ fn find_reload(attrs: &Vec<MetaNameValue>) -> Result<Reload> {
     Ok(Reload::Never)
 }
 
-fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
-    let LayoutInfo { source, is_root } = templ;
-    let (source,path) = fs_read(source, !is_root)?;
+mod generate {
+    use super::*;
 
-    // 1. include_source, for file template, an `include_str` to trigger recompile on template change
-    let include_source = path.as_ref().map(|path|quote!{const _: &str = include_str!(#path);});
+    pub fn include_source(path: &Option<String>) -> Option<TokenStream> {
+        path.as_ref().map(|path|quote!{const _: &str = include_str!(#path);})
+    }
 
-    // the template
-    let ok = match Parser::new(&source,SynParser::new(reload)).parse() {
-        Ok(ok) => ok,
-        Err(parser::Error::Generic(err)) => error!("{err}"),
-    };
-    let Template { output: SynOutput { layout, stmts, reload }, statics } = ok;
+    pub fn template(source: &str, reload: Reload) -> Result<Template<'_, SynOutput>> {
+        match Parser::new(source, SynParser::new(reload)).parse() {
+            Ok(ok) => Ok(ok),
+            Err(parser::Error::Generic(err)) => error!("{err}"),
+        }
+    }
 
-    // 3. sources, array of string containing static content
-    let sources: &[_] = {
+    pub fn sources(path: &Option<String>, reload: &Reload, statics: &[&str]) -> [TokenStream;2] {
         match (path.is_some(), reload.as_bool()) {
-            (true,Ok(true)) => &[
+            (true,Ok(true)) => [
                 quote!{ let sources = ::std::fs::read_to_string(#path)?; },
                 quote!{ let sources = ::tour::Parser::new(&sources,::tour::NoopParser).parse()?.statics; },
             ],
-            (true,Ok(false)) | (false,Ok(false)) => &[],
-            (true, Err(cond)) => &[
+            (true,Ok(false)) | (false,Ok(false)) => <_>::default(),
+            (true, Err(cond)) => [
                 quote! {
                     let sources = if #cond {
                         ::std::fs::read_to_string(#path)?
@@ -234,25 +235,8 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
                     };
                 }
             ],
-            (false, _) => &[quote!{ let sources = [#(#statics),*]; }],
+            (false, _) => [quote!{ let sources = [#(#statics),*]; },<_>::default()],
         }
-    };
-
-    if layout.is_some() {
-        error!("TODO: layout in layout is not yet supported")
     }
-
-    // layout specific `yield` interpretation
-    let layout_inner = quote! {
-        let layout_inner = &*self;
-    };
-
-    Ok(quote! {{
-        #include_source
-        #layout_inner
-        #(#sources)*
-        #(#stmts)*
-        Ok(())
-    }})
 }
 

@@ -138,7 +138,7 @@ impl ExprParser for SynParser {
             ExprTempl::Expr(expr) => {
                 let writer = match delim {
                     (Delimiter::Bang, Delimiter::Bang) => quote! {&mut *writer},
-                    _ => quote! {&mut ::tour::render::Escape(&mut *writer)},
+                    _ => quote! {&mut ::tour::Escape(&mut *writer)},
                 };
                 self.push_stack(syn::parse_quote! {
                     #Display(&#expr, #writer)?;
