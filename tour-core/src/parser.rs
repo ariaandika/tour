@@ -177,7 +177,7 @@ where
             }
             ParseState::Expr { .. } | ParseState::CloseExpr { .. } => {
                 // we dont have the closing delimiter here, just bail out
-                return Err(Error::Generic("unclosed expression".to_owned()));
+                Err(Error::Generic("unclosed expression".to_owned()))
             }
         }
     }

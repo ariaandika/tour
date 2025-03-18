@@ -4,7 +4,7 @@
 use crate::syntax::*;
 use quote::{quote, ToTokens};
 use syn::*;
-use tour_parser::parser_v2::{Delimiter, Error, ExprParser, Result};
+use tour_core::parser::{Delimiter, Error, ExprParser, Result};
 
 macro_rules! error {
     ($($tt:tt)*) => {

@@ -54,10 +54,16 @@ dependencies = [
 name = "tour"
 version = "0.1.0"
 dependencies = [
+ "tour-core",
+ "tour-macros",
+]
+
+[[package]]
+name = "tour-core"
+version = "0.1.0"
+dependencies = [
  "bytes",
  "itoa",
- "tour-macros",
- "tour-parser",
 ]
 
 [[package]]
@@ -67,16 +73,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
- "tour-parser",
-]
-
-[[package]]
-name = "tour-parser"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
+ "tour-core",
 ]
 
 [[package]]
