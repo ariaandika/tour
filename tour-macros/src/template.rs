@@ -62,10 +62,14 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let sources = generate::sources(&path, &reload, &statics);
 
     let layout = match layout {
-        Some(layout) => template_layout(layout, reload)?,
-        None => quote! {{
-            self.render_into(writer)
-        }},
+        Some(layout) => {
+            let layout = template_layout(layout, reload)?;
+            Some(quote! {
+                fn render_layout_into(&self, writer: &mut impl ::tour::Writer)
+                    -> ::tour::Result<()> #layout
+            })
+        },
+        None => None,
     };
 
     Ok(quote! {
@@ -78,8 +82,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                 Ok(())
             }
 
-            fn render_layout_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()>
-                #layout
+            #layout
         }
 
         impl #g1 ::tour::Display for #ident #g2 #g3 {
