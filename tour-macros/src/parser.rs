@@ -233,7 +233,7 @@ impl ExprParser for SynParser {
                 if let Some((_,body)) = else_branch.map(else_branch_expr) {
                     self.push_stack(syn::parse_quote!(let __for_expr = #expr;));
                     self.push_stack(syn::parse_quote!(
-                        if ExactSizeIterator::len(&IntoIterator::into_iter(&__for_expr)) == 0 #body
+                        if ExactSizeIterator::len(&IntoIterator::into_iter(__for_expr)) == 0 #body
                     ));
                 }
 
