@@ -113,7 +113,7 @@ impl ExprParser for SynParser {
         Ok(())
     }
 
-    fn parse_expr(&mut self, source: &str, delim: (Delimiter,Delimiter)) -> Result<()> {
+    fn parse_expr(&mut self, source: &str, delim: Delimiter) -> Result<()> {
         let ok = match syn::parse_str(source) {
             Ok(ok) => ok,
             Err(err) => error!("failed to parse expr: {err}"),
@@ -137,7 +137,7 @@ impl ExprParser for SynParser {
             }
             ExprTempl::Expr(expr) => {
                 let writer = match delim {
-                    (Delimiter::Bang, Delimiter::Bang) => quote! {&mut *writer},
+                    Delimiter::Bang => quote! {&mut *writer},
                     _ => quote! {&mut ::tour::Escape(&mut *writer)},
                 };
                 self.push_stack(syn::parse_quote! {

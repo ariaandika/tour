@@ -30,13 +30,13 @@ pub trait ExprParser {
     fn collect_static(&mut self, source: &str) -> Result<()>;
 
     /// parse expression
-    fn parse_expr(&mut self, source: &str, delim: (Delimiter,Delimiter)) -> Result<()>;
+    fn parse_expr(&mut self, source: &str, delim: Delimiter) -> Result<()>;
 
     /// parser output before consumed in codegen
     fn finish(self) -> Result<Self::Output>;
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 /// an expression delimiter
 pub enum Delimiter {
     /// `{{ }}`
@@ -79,9 +79,6 @@ impl Delimiter {
             b'!' => Some(Self::Bang),
             _ => None,
         }
-    }
-    pub fn is_both_bang(delim: (Delimiter,Delimiter)) -> bool {
-        matches!(delim,(Delimiter::Bang,Delimiter::Bang))
     }
 }
 
@@ -154,9 +151,16 @@ where
                 ParseState::CloseExpr { start, brace, open_delim, close_delim } => {
                     match byte {
                         b'}' => {
+                            if open_delim != close_delim {
+                                return Err(Error::Generic(format!(
+                                    "delimiter shold be same, open `{}` closed with `{}`",
+                                    open_delim,close_delim,
+                                )));
+                            }
+
                             self.index += 1;
                             self.state = ParseState::Static { start: current + 1 };
-                            self.parse_expr(&self.source[start..brace],(open_delim,close_delim))?;
+                            self.parse_expr(&self.source[start..brace],open_delim)?;
                         }
                         _ => self.state = ParseState::Expr { start, open_delim }
                     }
@@ -194,7 +198,7 @@ where
         Ok(())
     }
 
-    fn parse_expr(&mut self, source: &[u8], delim: (Delimiter,Delimiter)) -> Result<()> {
+    fn parse_expr(&mut self, source: &[u8], delim: Delimiter) -> Result<()> {
         self.expr.parse_expr(Self::parse_str(source), delim)
     }
 
@@ -216,7 +220,7 @@ impl ExprParser for NoopParser {
         Ok(())
     }
 
-    fn parse_expr(&mut self, _: &str, _: (Delimiter,Delimiter)) -> Result<()> {
+    fn parse_expr(&mut self, _: &str, _: Delimiter) -> Result<()> {
         Ok(())
     }
 
@@ -240,6 +244,16 @@ impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::Generic(s) => f.write_str(s),
+        }
+    }
+}
+
+impl std::fmt::Display for Delimiter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Brace => write!(f, "brace"),
+            Self::Bang => write!(f, "!"),
+            Self::Percent => write!(f, "%"),
         }
     }
 }
