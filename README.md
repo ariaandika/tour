@@ -30,7 +30,3 @@ fn main() {
 in debug mode, changing non expression like `No Tasks` in the source file,
 the next render will output the new content
 
-## TODO
-
-- add support for layout in layout
-

@@ -1,7 +1,7 @@
 //! `Template` derive macro
 use crate::parser::{LayoutInfo, Reload, SynOutput, SynParser};
 use proc_macro2::{Span, TokenStream};
-use quote::quote;
+use quote::{format_ident, quote};
 use std::fs;
 use syn::{punctuated::Punctuated, *};
 use tour_core::parser::{self, Parser, Template};
@@ -105,22 +105,70 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
     // 3. sources, array of string containing static content
     let sources = generate::sources(&path, &reload, &statics);
 
+    // nested layout
     if layout.is_some() {
-        error!("TODO: layout in layout is not yet supported")
+        let mut reload = reload;
+        let mut layout = layout;
+        let mut counter = 0;
+
+        let mut name_inner = format_ident!("InnerLayout{counter}");
+        let mut inner = quote! {
+            struct #name_inner<S>(S);
+
+            impl<S> ::tour::Display for #name_inner<S> where S: ::tour::Display {
+                fn display(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()> {
+                    #include_source
+                    let layout_inner = &self.0;
+                    #(#sources)*
+                    #(#stmts)*
+                    Ok(())
+                }
+            }
+        };
+
+        while let Some(LayoutInfo { source, is_root }) = layout.take() {
+            counter += 1;
+
+            let (source,path) = fs_read(source, !is_root)?;
+            let include_source = generate::include_source(&path);
+            let Template { output: SynOutput { layout: l1, stmts, reload: r1 }, statics } = generate::template(&source, reload)?;
+            let sources = generate::sources(&path, &r1, &statics);
+
+            let name = format_ident!("InnerLayout{counter}");
+            inner = quote! {
+                struct #name<S>(S);
+
+                impl<S> ::tour::Display for #name<S> where S: ::tour::Display {
+                    fn display(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()> {
+                        #inner
+
+                        #include_source
+                        let layout_inner = #name_inner(&self.0);
+                        #(#sources)*
+                        #(#stmts)*
+                        Ok(())
+                    }
+                }
+            };
+
+            name_inner = name;
+            layout = l1;
+            reload = r1;
+        }
+
+        Ok(quote! {{
+            #inner
+            ::tour::Display::display(&#name_inner(self), writer)
+        }})
+    } else {
+        Ok(quote! {{
+            #include_source
+            let layout_inner = &*self;
+            #(#sources)*
+            #(#stmts)*
+            Ok(())
+        }})
     }
-
-    // layout specific `yield` interpretation
-    let layout_inner = quote! {
-        let layout_inner = &*self;
-    };
-
-    Ok(quote! {{
-        #include_source
-        #layout_inner
-        #(#sources)*
-        #(#stmts)*
-        Ok(())
-    }})
 }
 
 fn find_template_attr(mut attrs: Vec<Attribute>) -> Result<Vec<MetaNameValue>> {

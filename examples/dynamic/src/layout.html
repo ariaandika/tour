@@ -1,5 +1,6 @@
+{% extends root "examples/dynamic/src/root.html" %}
+
 <section>
-  <div>Layout { path }</div>
-  { if *path == "/home" }<div>Home</div>{ endif }
+  <div>Layout</div>
   {{ yield }}
 </section>
