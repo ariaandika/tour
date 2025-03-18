@@ -6,3 +6,9 @@ edition = "2024"
 [dependencies]
 tour-macros = { version = "0.1.0", path = "../tour-macros" }
 tour-core = { version = "0.1.0", path = "../tour-core" }
+
+[features]
+default = ["dev-reload"]
+
+# reload default to debug_assertions
+dev-reload = ["tour-macros/dev-reload"]

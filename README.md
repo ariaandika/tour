@@ -17,6 +17,7 @@ fn main() {
     println!("{result}");
 }
 ```
+
 ```html
 <!-- templates/index.html -->
 {{ for task in tasks }}
@@ -31,8 +32,5 @@ the next render will output the new content
 
 ## TODO
 
-- make auto-reload as cargo feature
 - add support for layout in layout
-- add `allow(unused)` in destructured field
-- add `{! body !}` to prevent escape
 

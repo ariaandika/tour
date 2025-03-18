@@ -193,8 +193,7 @@ fn find_reload(attrs: &Vec<MetaNameValue>) -> Result<Reload> {
         }
     }
 
-    // TODO: as feature
-    Ok(Reload::Never)
+    Ok(if cfg!(feature = "dev-reload") { Reload::Debug } else { Reload::Never })
 }
 
 mod generate {
