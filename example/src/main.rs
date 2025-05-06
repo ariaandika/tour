@@ -2,7 +2,7 @@ use std::io::{stdin, BufRead};
 use tour::Template;
 
 #[derive(Template)]
-#[template(root = "examples/dynamic/src/main.html")]
+#[template(root = "example/src/main.html")]
 struct Page {
     name: String,
 }

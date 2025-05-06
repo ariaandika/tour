@@ -1,4 +1,4 @@
 [workspace]
-members = [ "examples/*", "tour","tour-macros", "tour-core"]
-default-members = [ "tour","tour-macros","tour-core"]
+members = [ "example", "tour","tour-macros", "tour-core"]
+default-members = [ "tour"]
 resolver = "2"
