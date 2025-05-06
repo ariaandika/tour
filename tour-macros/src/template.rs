@@ -49,7 +49,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let destructor = match data {
         Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
             let fields = data.fields.into_iter().map(|f|f.ident.expect("checked in if guard"));
-            quote! { #[allow(unused_variables)] let #ident { #(#fields),* } = self; }
+            quote! { let #ident { #(#fields),* } = self; }
         }
         // unit struct, or unnamed struct does not destructured
         _ => quote! {}
@@ -73,6 +73,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     };
 
     Ok(quote! {
+        #[automatically_derived]
         impl #g1 ::tour::Template for #ident #g2 #g3 {
             fn render_into(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
                 #include_source
@@ -85,6 +86,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             #layout
         }
 
+        #[automatically_derived]
         impl #g1 #TemplDisplay for #ident #g2 #g3 {
             fn display(&self, f: &mut impl #TemplWrite) -> ::tour::Result<()> {
                 self.render_into(f)
@@ -277,7 +279,6 @@ mod generate {
                     };
                 },
                 quote! {
-                    #[allow(unused_variables)]
                     let sources = if #cond {
                         ::tour::Parser::new(&sources,::tour::NoopParser).parse()?.statics
                     } else {

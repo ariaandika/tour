@@ -4,6 +4,7 @@ use tour::Template;
 #[derive(Template)]
 #[template(root = "example/src/main.html")]
 struct Page {
+    id: i32,
     name: String,
 }
 
@@ -17,11 +18,13 @@ fn main() {
     let _path = "home";
 
     loop {
-        let result = Page {
+        let page = Page {
+            id: 4,
             name: "<script>alert('foo')</script>".into()
-        }.render_layout().unwrap();
+        };
+        let result = page.render_layout().unwrap();
 
-        let inlined = Inline { name: "foo".into() }.render().unwrap();
+        let inlined = Inline { name: format!("foo {}",4) }.render().unwrap();
 
         println!("{result}{inlined}");
         println!("[Press ENTER to re render]");
