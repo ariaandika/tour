@@ -33,7 +33,7 @@ impl TemplWrite for bytes::BytesMut {
     }
 }
 
-/// Wrap [`Writer`] to escape input.
+/// Wrap [`TemplWrite`] to escape input.
 ///
 /// escape based on [OWASP recommendation][1]
 ///
