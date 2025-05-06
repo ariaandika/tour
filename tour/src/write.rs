@@ -1,32 +1,32 @@
-//! The [`Writer`] trait
+//! The [`TemplWrite`] trait
 use crate::Result;
 
-pub trait Writer {
+pub trait TemplWrite {
     /// render a buffer with escapes
     fn write_str(&mut self, value: &str) -> Result<()>;
 }
 
-impl<R> Writer for &mut R where R: Writer {
+impl<R> TemplWrite for &mut R where R: TemplWrite {
     fn write_str(&mut self, value: &str) -> Result<()> {
         R::write_str(self, value)
     }
 }
 
-impl Writer for Vec<u8> {
+impl TemplWrite for Vec<u8> {
     fn write_str(&mut self, value: &str) -> Result<()> {
         self.extend_from_slice(value.as_bytes());
         Ok(())
     }
 }
 
-impl Writer for String {
+impl TemplWrite for String {
     fn write_str(&mut self, value: &str) -> Result<()> {
         self.push_str(value);
         Ok(())
     }
 }
 
-impl Writer for bytes::BytesMut {
+impl TemplWrite for bytes::BytesMut {
     fn write_str(&mut self, value: &str) -> Result<()> {
         bytes::BufMut::put(self, value.as_bytes());
         Ok(())
@@ -40,7 +40,7 @@ impl Writer for bytes::BytesMut {
 /// [1]: <https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html>
 pub struct Escape<W>(pub W);
 
-impl<W> Writer for Escape<W> where W: Writer {
+impl<W> TemplWrite for Escape<W> where W: TemplWrite {
     fn write_str(&mut self, value: &str) -> Result<()> {
         let mut latest = 0;
         let mut iter = value.char_indices();

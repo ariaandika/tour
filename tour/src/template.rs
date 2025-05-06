@@ -1,9 +1,9 @@
-use crate::{Result, Writer};
+use crate::{Result, TemplWrite};
 
 pub trait Template {
-    fn render_into(&self, render: &mut impl Writer) -> Result<()>;
+    fn render_into(&self, render: &mut impl TemplWrite) -> Result<()>;
 
-    fn render_layout_into(&self, render: &mut impl Writer) -> Result<()> {
+    fn render_layout_into(&self, render: &mut impl TemplWrite) -> Result<()> {
         self.render_into(render)
     }
 

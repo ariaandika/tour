@@ -1,5 +1,5 @@
 //! `Template` derive macro
-use crate::{parser::{LayoutInfo, Reload, SynOutput, SynParser}, TemplWrite};
+use crate::{parser::{LayoutInfo, Reload, SynOutput, SynParser}, TemplWrite, TemplDisplay};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::fs;
@@ -85,7 +85,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             #layout
         }
 
-        impl #g1 ::tour::Display for #ident #g2 #g3 {
+        impl #g1 #TemplDisplay for #ident #g2 #g3 {
             fn display(&self, f: &mut impl #TemplWrite) -> ::tour::Result<()> {
                 self.render_into(f)
             }
@@ -118,8 +118,8 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
         let mut inner = quote! {
             struct #name_inner<S>(S);
 
-            impl<S> ::tour::Display for #name_inner<S> where S: ::tour::Display {
-                fn display(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()> {
+            impl<S> #TemplDisplay for #name_inner<S> where S: #TemplDisplay {
+                fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
                     #include_source
                     let layout_inner = &self.0;
                     #(#sources)*
@@ -141,8 +141,8 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
             inner = quote! {
                 struct #name<S>(S);
 
-                impl<S> ::tour::Display for #name<S> where S: ::tour::Display {
-                    fn display(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()> {
+                impl<S> #TemplDisplay for #name<S> where S: #TemplDisplay {
+                    fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
                         #inner
 
                         #include_source
@@ -161,7 +161,7 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
 
         Ok(quote! {{
             #inner
-            ::tour::Display::display(&#name_inner(self), writer)
+            #TemplDisplay::display(&#name_inner(self), writer)
         }})
     } else {
         Ok(quote! {{

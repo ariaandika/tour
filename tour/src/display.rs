@@ -1,18 +1,18 @@
-//! The [`Display`] trait.
-use crate::{Result, Writer};
+//! The [`TemplDisplay`] trait.
+use crate::{Result, TemplWrite};
 
-pub trait Display {
-    fn display(&self, f: &mut impl Writer) -> Result<()>;
+pub trait TemplDisplay {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()>;
 }
 
-impl<R> Display for &R where R: Display {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl<R> TemplDisplay for &R where R: TemplDisplay {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         R::display(*self, f)
     }
 }
 
-impl<T> Display for Option<T> where T: Display {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl<T> TemplDisplay for Option<T> where T: TemplDisplay {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         if let Some(me) = self {
             T::display(me, f)?;
         }
@@ -20,40 +20,40 @@ impl<T> Display for Option<T> where T: Display {
     }
 }
 
-impl<T> Display for Box<T> where T: Display {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl<T> TemplDisplay for Box<T> where T: TemplDisplay {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         T::display(self, f)
     }
 }
 
-impl Display for char {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl TemplDisplay for char {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         f.write_str(self.encode_utf8(&mut [0u8;4]))
     }
 }
 
-impl Display for str {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl TemplDisplay for str {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         f.write_str(self)
     }
 }
 
-impl Display for &str {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl TemplDisplay for &str {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         f.write_str(self)
     }
 }
 
-impl Display for String {
-    fn display(&self, f: &mut impl Writer) -> Result<()> {
+impl TemplDisplay for String {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         f.write_str(self)
     }
 }
 
 macro_rules! render_int {
     ($t:ty) => {
-        impl Display for $t {
-            fn display(&self, f: &mut impl Writer) -> Result<()> {
+        impl TemplDisplay for $t {
+            fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
                 f.write_str(itoa::Buffer::new().format(*self))
             }
         }

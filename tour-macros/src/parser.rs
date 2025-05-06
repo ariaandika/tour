@@ -108,7 +108,7 @@ impl ExprParser for SynParser {
         };
 
         self.static_len += 1;
-        self.push_stack(syn::parse_quote!( #TemplDisplay(#src, writer)?; ));
+        self.push_stack(syn::parse_quote!( #TemplDisplay::display(#src, writer)?; ));
 
         Ok(())
     }
@@ -132,7 +132,7 @@ impl ExprParser for SynParser {
             }
             ExprTempl::Yield(_yield) => {
                 self.push_stack(syn::parse_quote! {
-                    #TemplDisplay(&layout_inner, &mut *writer)?;
+                    #TemplDisplay::display(&layout_inner, &mut *writer)?;
                 });
             }
             ExprTempl::Expr(expr) => {
@@ -141,7 +141,7 @@ impl ExprParser for SynParser {
                     _ => quote! {&mut ::tour::Escape(&mut *writer)},
                 };
                 self.push_stack(syn::parse_quote! {
-                    #TemplDisplay(&#expr, #writer)?;
+                    #TemplDisplay::display(&#expr, #writer)?;
                 });
             }
             ExprTempl::If(templ) => {
