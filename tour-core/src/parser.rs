@@ -1,24 +1,6 @@
 //! attempt to split the expression parser as trait
 //! to prevent dependencies on syn and friends
 
-/// parse output
-///
-/// template then can be generated to static source code at compile time
-/// or static content at runtime
-pub struct Template<'a, E> {
-    /// expression parser output
-    pub output: E,
-    /// static contents
-    pub statics: Vec<&'a str>
-}
-
-enum ParseState {
-    Static { start: usize },
-    Expr { start: usize, open_delim: Delimiter },
-    OpenExpr { start: usize, brace: usize, },
-    CloseExpr { start: usize, brace: usize, open_delim: Delimiter, close_delim: Delimiter, },
-}
-
 /// a template expression parser
 pub trait ExprParser {
     /// finished parser output
@@ -80,6 +62,24 @@ impl Delimiter {
             _ => None,
         }
     }
+}
+
+/// parse output
+///
+/// template then can be generated to static source code at compile time
+/// or static content at runtime
+pub struct Template<'a, E> {
+    /// expression parser output
+    pub output: E,
+    /// static contents
+    pub statics: Vec<&'a str>
+}
+
+enum ParseState {
+    Static { start: usize },
+    Expr { start: usize, open_delim: Delimiter },
+    OpenExpr { start: usize, brace: usize, },
+    CloseExpr { start: usize, brace: usize, open_delim: Delimiter, close_delim: Delimiter, },
 }
 
 /// template source code parser
@@ -152,7 +152,7 @@ where
                     match byte {
                         b'}' => {
                             if open_delim != close_delim {
-                                return Err(Error::Generic(format!(
+                                return Err(ParseError::Generic(format!(
                                     "delimiter shold be same, open `{}` closed with `{}`",
                                     open_delim,close_delim,
                                 )));
@@ -181,7 +181,7 @@ where
             }
             ParseState::Expr { .. } | ParseState::CloseExpr { .. } => {
                 // we dont have the closing delimiter here, just bail out
-                Err(Error::Generic("unclosed expression".to_owned()))
+                Err(ParseError::Generic("unclosed expression".to_owned()))
             }
         }
     }
@@ -229,21 +229,21 @@ impl ExprParser for NoopParser {
     }
 }
 
-/// result alias for [`Parser`] error
-pub type Result<T,E = Error> = core::result::Result<T,E>;
+/// result alias for [`ParseError`]
+pub type Result<T,E = ParseError> = core::result::Result<T,E>;
 
 /// an error that may occur during parsing in [`Parser`]
 #[derive(Debug)]
-pub enum Error {
+pub enum ParseError {
     Generic(String),
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for ParseError {}
 
-impl std::fmt::Display for Error {
+impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Generic(s) => f.write_str(s),
+            ParseError::Generic(s) => f.write_str(s),
         }
     }
 }

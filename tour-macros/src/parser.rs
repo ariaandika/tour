@@ -1,14 +1,14 @@
 //! [`ExprParser`] implementation via syn
 //!
 //! see [`SynParser`]
-use crate::syntax::*;
+use crate::{syntax::*, TemplDisplay};
 use quote::{quote, ToTokens};
 use syn::*;
-use tour_core::parser::{Delimiter, Error, ExprParser, Result};
+use tour_core::{Delimiter, ParseError, ExprParser, Result};
 
 macro_rules! error {
     ($($tt:tt)*) => {
-        return Err(Error::Generic(format!($($tt)*)))
+        return Err(ParseError::Generic(format!($($tt)*)))
     };
 }
 
@@ -108,7 +108,7 @@ impl ExprParser for SynParser {
         };
 
         self.static_len += 1;
-        self.push_stack(syn::parse_quote!( #Display(#src, writer)?; ));
+        self.push_stack(syn::parse_quote!( #TemplDisplay(#src, writer)?; ));
 
         Ok(())
     }
@@ -132,7 +132,7 @@ impl ExprParser for SynParser {
             }
             ExprTempl::Yield(_yield) => {
                 self.push_stack(syn::parse_quote! {
-                    #Display(&layout_inner, &mut *writer)?;
+                    #TemplDisplay(&layout_inner, &mut *writer)?;
                 });
             }
             ExprTempl::Expr(expr) => {
@@ -141,7 +141,7 @@ impl ExprParser for SynParser {
                     _ => quote! {&mut ::tour::Escape(&mut *writer)},
                 };
                 self.push_stack(syn::parse_quote! {
-                    #Display(&#expr, #writer)?;
+                    #TemplDisplay(&#expr, #writer)?;
                 });
             }
             ExprTempl::If(templ) => {
@@ -281,14 +281,6 @@ impl std::fmt::Display for Scope {
             Scope::If { .. } => f.write_str("if"),
             Scope::For { .. } => f.write_str("for"),
         }
-    }
-}
-
-struct Display;
-
-impl quote::ToTokens for Display {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        quote! {::tour::Display::display}.to_tokens(tokens);
     }
 }
 

@@ -54,6 +54,8 @@ dependencies = [
 name = "tour"
 version = "0.1.0"
 dependencies = [
+ "bytes",
+ "itoa",
  "tour-core",
  "tour-macros",
 ]
@@ -61,10 +63,6 @@ dependencies = [
 [[package]]
 name = "tour-core"
 version = "0.1.0"
-dependencies = [
- "bytes",
- "itoa",
-]
 
 [[package]]
 name = "tour-macros"

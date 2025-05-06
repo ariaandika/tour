@@ -12,3 +12,21 @@ pub fn template(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
 }
 
+/// `ToTokens` for public name
+struct TemplDisplay;
+
+impl quote::ToTokens for TemplDisplay {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        quote::quote! {::tour::Display::display}.to_tokens(tokens);
+    }
+}
+
+/// `ToTokens` for public name
+struct TemplWrite;
+
+impl quote::ToTokens for TemplWrite {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        quote::quote! {::tour::Writer}.to_tokens(tokens);
+    }
+}
+

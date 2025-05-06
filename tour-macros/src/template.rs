@@ -1,10 +1,10 @@
 //! `Template` derive macro
-use crate::parser::{LayoutInfo, Reload, SynOutput, SynParser};
+use crate::{parser::{LayoutInfo, Reload, SynOutput, SynParser}, TemplWrite};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::fs;
 use syn::{punctuated::Punctuated, *};
-use tour_core::parser::{self, Parser, Template};
+use tour_core::{Parser, ParseError, Template};
 
 macro_rules! error {
     (@ $s:expr, $($tt:tt)*) => {
@@ -65,7 +65,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         Some(layout) => {
             let layout = template_layout(layout, reload)?;
             Some(quote! {
-                fn render_layout_into(&self, writer: &mut impl ::tour::Writer)
+                fn render_layout_into(&self, writer: &mut impl #TemplWrite)
                     -> ::tour::Result<()> #layout
             })
         },
@@ -74,7 +74,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 
     Ok(quote! {
         impl #g1 ::tour::Template for #ident #g2 #g3 {
-            fn render_into(&self, writer: &mut impl ::tour::Writer) -> ::tour::Result<()> {
+            fn render_into(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
                 #include_source
                 #destructor
                 #(#sources)*
@@ -86,7 +86,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         }
 
         impl #g1 ::tour::Display for #ident #g2 #g3 {
-            fn display(&self, f: &mut impl ::tour::Writer) -> ::tour::Result<()> {
+            fn display(&self, f: &mut impl #TemplWrite) -> ::tour::Result<()> {
                 self.render_into(f)
             }
         }
@@ -257,7 +257,7 @@ mod generate {
     pub fn template(source: &str, reload: Reload) -> Result<Template<'_, SynOutput>> {
         match Parser::new(source, SynParser::new(reload)).parse() {
             Ok(ok) => Ok(ok),
-            Err(parser::Error::Generic(err)) => error!("{err}"),
+            Err(ParseError::Generic(err)) => error!("{err}"),
         }
     }
 
