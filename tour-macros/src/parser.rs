@@ -1,7 +1,7 @@
 //! [`ExprParser`] implementation via syn
 //!
 //! see [`SynParser`]
-use crate::{syntax::*, TemplDisplay};
+use crate::{spec, syntax::*, TemplDisplay};
 use quote::{quote, ToTokens};
 use syn::*;
 use tour_core::{Delimiter, ParseError, ExprParser, Result};
@@ -136,17 +136,10 @@ impl ExprParser for SynParser {
                 });
             }
             ExprTempl::Expr(expr) => {
-                use Delimiter::*;
-                let elem = match delim {
-                    Hash => quote! {&::tour::Display(&#expr)},
-                    Bang | Brace | Percent => quote! {&#expr},
-                };
-                let writer = match delim {
-                    Bang => quote! {&mut *writer},
-                    Hash | Brace | Percent => quote! {&mut ::tour::Escape(&mut *writer)},
-                };
+                let display = spec::display(delim, expr);
+                let writer = spec::writer(delim);
                 self.push_stack(syn::parse_quote! {
-                    #TemplDisplay::display(#elem, #writer)?;
+                    #TemplDisplay::display(#display, #writer)?;
                 });
             }
             ExprTempl::If(templ) => {
@@ -243,6 +236,12 @@ impl ExprParser for SynParser {
                 }
 
                 self.push_stack(syn::parse_quote!(#for_token #pat #in_token #for_expr { #(#stmts)* }));
+            }
+
+            ExprTempl::Use(UseTempl { use_token, path }) => {
+                self.push_stack(syn::parse_quote! {
+                    #use_token #path;
+                });
             }
         }
 

@@ -1,5 +1,9 @@
 //! tour template parser
+
+mod spec;
+
 mod parser;
 
-pub use parser::{Parser, Template, ExprParser, NoopParser, Delimiter, ParseError, Result};
+pub use spec::Delimiter;
+pub use parser::{Parser, Template, ExprParser, NoopParser, ParseError, Result};
 

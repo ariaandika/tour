@@ -1,5 +1,6 @@
 //! attempt to split the expression parser as trait
 //! to prevent dependencies on syn and friends
+use crate::Delimiter;
 
 /// a template expression parser
 pub trait ExprParser {
@@ -16,54 +17,6 @@ pub trait ExprParser {
 
     /// parser output before consumed in codegen
     fn finish(self) -> Result<Self::Output>;
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-/// an expression delimiter
-pub enum Delimiter {
-    /// `{{ }}` escaped render
-    Brace,
-    /// `{! !}` unescaped render
-    Bang,
-    /// `{% %}` escaped render
-    Percent,
-    /// `{# #}` escaped std::fmt::Display render
-    Hash,
-    // /// `{@ @}`
-    // At,
-    // /// `{$ $}`
-    // Dollar,
-    // /// `{^ ^}`
-    // Caret,
-    // /// `{& &}`
-    // And,
-    // /// `{* *}`
-    // Star,
-    // /// `{( )}`
-    // Paren,
-    // /// `{[ ]}`
-    // Bracket,
-}
-
-impl Delimiter {
-    fn match_open(ch: u8) -> Option<Self> {
-        match ch {
-            b'{' => Some(Self::Brace),
-            b'%' => Some(Self::Percent),
-            b'!' => Some(Self::Bang),
-            b'#' => Some(Self::Hash),
-            _ => None,
-        }
-    }
-    fn match_close(ch: u8) -> Option<Self> {
-        match ch {
-            b'}' => Some(Self::Brace),
-            b'%' => Some(Self::Percent),
-            b'!' => Some(Self::Bang),
-            b'#' => Some(Self::Hash),
-            _ => None,
-        }
-    }
 }
 
 /// parse output
@@ -246,17 +199,6 @@ impl std::fmt::Display for ParseError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ParseError::Generic(s) => f.write_str(s),
-        }
-    }
-}
-
-impl std::fmt::Display for Delimiter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Brace => write!(f, "brace"),
-            Self::Bang => write!(f, "!"),
-            Self::Percent => write!(f, "%"),
-            Self::Hash => write!(f, "#"),
         }
     }
 }

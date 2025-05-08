@@ -1,11 +1,13 @@
 {{ layout root "example/src/layout.html" }}
 
+{{ use std::io::Write }}
+
 <div>Token {{ name }} status {{ foo }}</div>
 
 <div>
   <h1>Foos</h1>
   {{ for f in foos }}
-    {# f #}
+    {% f %}
   {{ endfor }}
 </div>
 

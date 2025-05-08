@@ -1,5 +1,8 @@
 //! macros for `tour` template
+
 mod syntax;
+mod spec;
+
 mod parser;
 mod template;
 

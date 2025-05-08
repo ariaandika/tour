@@ -24,6 +24,8 @@ pub enum ExprTempl {
     For(ForTempl),
     /// `{{ endfor }}`
     EndFor(kw::endfor),
+    /// `{{ use crate::TimeDisplay }}`
+    Use(UseTempl),
 }
 
 impl Parse for ExprTempl {
@@ -37,6 +39,7 @@ impl Parse for ExprTempl {
             _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
             _ if input.peek(Token![for]) => input.parse().map(Self::For),
             _ if input.peek(kw::endfor) => input.parse().map(Self::EndFor),
+            _ if input.peek(Token![use]) => input.parse().map(Self::Use),
             _ => input.parse().map(Self::Expr),
         }
     }
@@ -76,6 +79,12 @@ pub struct ForTempl {
     pub pat: Pat,
     pub in_token: Token![in],
     pub expr: Expr,
+}
+
+/// `{{ use crate::TimeDisplay }}`
+pub struct UseTempl {
+    pub use_token: Token![use],
+    pub path: Path,
 }
 
 impl Parse for LayoutTempl {
@@ -126,6 +135,15 @@ impl Parse for ForTempl {
             pat: input.call(Pat::parse_single)?,
             in_token: input.parse()?,
             expr: input.parse()?,
+        })
+    }
+}
+
+impl Parse for UseTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            use_token: input.parse()?,
+            path: input.parse()?,
         })
     }
 }
