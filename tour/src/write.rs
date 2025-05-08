@@ -109,8 +109,7 @@ pub struct IoTemplWrite<F>(pub F);
 
 impl<F: std::io::Write> TemplWrite for IoTemplWrite<F> {
     fn write_str(&mut self, value: &str) -> Result<()> {
-        self.0.write(value.as_bytes())?;
-        Ok(())
+        self.0.write_all(value.as_bytes()).map_err(Into::into)
     }
 }
 

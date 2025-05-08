@@ -75,6 +75,24 @@ render_int!(i64);
 render_int!(i128);
 render_int!(isize);
 
+macro_rules! deref {
+    ($id:ident) => {
+        impl<T> std::ops::Deref for $id<T> {
+            type Target = T;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl<F> std::ops::DerefMut for $id<F> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+    };
+}
+
 /// Wrap [`fmt::Display`] to [`TemplDisplay`].
 #[derive(Debug)]
 pub struct Display<D>(pub D);
@@ -93,18 +111,7 @@ impl<D: fmt::Display> fmt::Display for Display<D> {
     }
 }
 
-impl<T> std::ops::Deref for Display<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<F> std::ops::DerefMut for Display<F> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+deref!(Display);
 
 /// Wrap [`fmt::Debug`] to [`TemplDisplay`].
 pub struct Debug<D>(pub D);
@@ -123,15 +130,4 @@ impl<D: fmt::Debug> fmt::Debug for Debug<D> {
     }
 }
 
-impl<T> std::ops::Deref for Debug<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl<F> std::ops::DerefMut for Debug<F> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
+deref!(Debug);
