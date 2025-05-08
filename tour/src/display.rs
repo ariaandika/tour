@@ -1,4 +1,6 @@
 //! The [`TemplDisplay`] trait.
+use std::fmt;
+
 use crate::{Result, TemplWrite};
 
 pub trait TemplDisplay {
@@ -73,14 +75,21 @@ render_int!(i64);
 render_int!(i128);
 render_int!(isize);
 
-/// Wrap [`std::fmt::Display`] to [`TemplDisplay`].
+/// Wrap [`fmt::Display`] to [`TemplDisplay`].
+#[derive(Debug)]
 pub struct Display<D>(pub D);
 
-impl<D: std::fmt::Display> TemplDisplay for Display<D> {
+impl<D: fmt::Display> TemplDisplay for Display<D> {
     fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
         use std::fmt::Write as _;
         let mut f = crate::write::TemplWriteFmt(f);
         write!(&mut f, "{}", self.0).map_err(Into::into)
+    }
+}
+
+impl<D: fmt::Display> fmt::Display for Display<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
     }
 }
 
@@ -92,6 +101,36 @@ impl<T> std::ops::Deref for Display<T> {
 }
 
 impl<F> std::ops::DerefMut for Display<F> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Wrap [`fmt::Debug`] to [`TemplDisplay`].
+pub struct Debug<D>(pub D);
+
+impl<D: fmt::Debug> TemplDisplay for Debug<D> {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
+        use std::fmt::Write as _;
+        let mut f = crate::write::TemplWriteFmt(f);
+        write!(&mut f, "{:?}", self.0).map_err(Into::into)
+    }
+}
+
+impl<D: fmt::Debug> fmt::Debug for Debug<D> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T> std::ops::Deref for Debug<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<F> std::ops::DerefMut for Debug<F> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }

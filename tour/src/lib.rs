@@ -6,7 +6,7 @@ mod error;
 
 pub use template::Template;
 pub use write::{TemplWrite, Escape, FmtTemplWrite, IoTemplWrite, TemplWriteFmt};
-pub use display::{TemplDisplay, Display};
+pub use display::{TemplDisplay, Display, Debug};
 pub use error::{Error, Result};
 
 pub use tour_core::{Parser, NoopParser};
