@@ -46,12 +46,52 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let include_source = generate::include_source(&path);
 
     // 2. destructor, for named fields, destructor for convenient
-    let destructor = match data {
+    let destructor = match &data {
         Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
-            let fields = data.fields.into_iter().map(|f|f.ident.expect("checked in if guard"));
+            let fields = data.fields.iter().map(|f|f.ident.as_ref().expect("checked in if guard"));
             quote! { let #ident { #(#fields),* } = self; }
         }
         // unit struct, or unnamed struct does not destructured
+        _ => quote! {}
+    };
+
+    // field with `#[fmt(display)]` attribute
+    let displays = match &data {
+        Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
+            let mut displays = quote! {};
+
+            for f in &data.fields {
+                let mut attrs = f.attrs.iter();
+
+                let attr = loop {
+                    let Some(attr) = attrs.next() else {
+                        break AttrKind::None
+                    };
+
+                    if !attr.path().is_ident("fmt") {
+                        continue
+                    }
+
+                    let id = attr.parse_args::<Ident>()?;
+
+                    if id == "display" {
+                        break AttrKind::Display(id)
+                    }
+                };
+
+                match attr {
+                    AttrKind::None => continue,
+                    AttrKind::Display(id) => {
+                        displays.extend(quote! {
+                            let #id = ::tour::display::Display(&#id);
+                        });
+                    }
+                }
+            }
+
+            displays
+        }
+        // unit struct, or unnamed struct cannot have display attribute
         _ => quote! {}
     };
 
@@ -78,6 +118,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             fn render_into(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
                 #include_source
                 #destructor
+                #displays
                 #(#sources)*
                 #(#stmts)*
                 Ok(())
@@ -247,6 +288,11 @@ fn find_reload(attrs: &Vec<MetaNameValue>) -> Result<Reload> {
     }
 
     Ok(if cfg!(feature = "dev-reload") { Reload::Debug } else { Reload::Never })
+}
+
+enum AttrKind {
+    None,
+    Display(Ident),
 }
 
 mod generate {
