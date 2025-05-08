@@ -75,6 +75,24 @@ impl<W> TemplWrite for Escape<W> where W: TemplWrite {
     }
 }
 
+macro_rules! deref {
+    ($id:ident) => {
+        impl<T> std::ops::Deref for $id<T> {
+            type Target = T;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl<F> std::ops::DerefMut for $id<F> {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+    };
+}
+
 /// Wrap [`std::fmt::Write`] to [`TemplWrite`].
 pub struct FmtTemplWrite<F>(pub F);
 
@@ -83,6 +101,8 @@ impl<F: std::fmt::Write> TemplWrite for FmtTemplWrite<F> {
         self.0.write_str(value).map_err(Into::into)
     }
 }
+
+deref!(FmtTemplWrite);
 
 /// Wrap [`std::io::Write`] to [`TemplWrite`].
 pub struct IoWrite<F>(pub F);
@@ -93,6 +113,8 @@ impl<F: std::io::Write> TemplWrite for IoWrite<F> {
         Ok(())
     }
 }
+
+deref!(IoWrite);
 
 /// Wrap [`TemplWrite`] to [`std::fmt::Write`].
 pub struct TemplWriteFmt<F>(pub F);
@@ -105,3 +127,5 @@ impl<F: TemplWrite> std::fmt::Write for TemplWriteFmt<F> {
         }
     }
 }
+
+deref!(TemplWriteFmt);

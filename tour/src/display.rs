@@ -84,3 +84,15 @@ impl<D: std::fmt::Display> TemplDisplay for Display<D> {
     }
 }
 
+impl<T> std::ops::Deref for Display<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl<F> std::ops::DerefMut for Display<F> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
