@@ -73,3 +73,14 @@ render_int!(i64);
 render_int!(i128);
 render_int!(isize);
 
+/// Wrap [`std::fmt::Display`] to [`TemplDisplay`].
+pub struct Display<D>(pub D);
+
+impl<D: std::fmt::Display> TemplDisplay for Display<D> {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
+        use std::fmt::Write as _;
+        let mut f = crate::write::TemplWriteFmt(f);
+        write!(&mut f, "{}", self.0).map_err(Into::into)
+    }
+}
+

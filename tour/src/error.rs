@@ -9,6 +9,18 @@ pub enum Error {
     Io(io::Error),
 }
 
+impl Error {
+    /// Convert error to [`io::Error`].
+    ///
+    /// [`ParseError`] will become [`io::ErrorKind::InvalidData`].
+    pub fn into_io(self) -> io::Error {
+        match self {
+            Error::Parse(err) => io::Error::new(io::ErrorKind::InvalidData, err),
+            Error::Io(error) => error,
+        }
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -29,6 +41,12 @@ impl From<ParseError> for Error {
 impl From<io::Error> for Error {
     fn from(value: io::Error) -> Self {
         Self::Io(value)
+    }
+}
+
+impl From<fmt::Error> for Error {
+    fn from(_: fmt::Error) -> Self {
+        Self::Io(io::ErrorKind::Other.into())
     }
 }
 

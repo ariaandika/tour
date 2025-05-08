@@ -75,3 +75,33 @@ impl<W> TemplWrite for Escape<W> where W: TemplWrite {
     }
 }
 
+/// Wrap [`std::fmt::Write`] to [`TemplWrite`].
+pub struct FmtTemplWrite<F>(pub F);
+
+impl<F: std::fmt::Write> TemplWrite for FmtTemplWrite<F> {
+    fn write_str(&mut self, value: &str) -> Result<()> {
+        self.0.write_str(value).map_err(Into::into)
+    }
+}
+
+/// Wrap [`std::io::Write`] to [`TemplWrite`].
+pub struct IoWrite<F>(pub F);
+
+impl<F: std::io::Write> TemplWrite for IoWrite<F> {
+    fn write_str(&mut self, value: &str) -> Result<()> {
+        self.0.write(value.as_bytes())?;
+        Ok(())
+    }
+}
+
+/// Wrap [`TemplWrite`] to [`std::fmt::Write`].
+pub struct TemplWriteFmt<F>(pub F);
+
+impl<F: TemplWrite> std::fmt::Write for TemplWriteFmt<F> {
+    fn write_str(&mut self, s: &str) -> std::fmt::Result {
+        match self.0.write_str(s) {
+            Ok(ok) => Ok(ok),
+            Err(_) => Err(std::fmt::Error),
+        }
+    }
+}
