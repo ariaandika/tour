@@ -4,7 +4,7 @@ mod parser;
 mod template;
 
 /// derive macro for `Template` trait
-#[proc_macro_derive(Template, attributes(template))]
+#[proc_macro_derive(Template, attributes(template,fmt))]
 pub fn template(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     match template::template(syn::parse_macro_input!(input as syn::DeriveInput)) {
         Ok(ok) => ok.into(),

@@ -105,16 +105,16 @@ impl<F: std::fmt::Write> TemplWrite for FmtTemplWrite<F> {
 deref!(FmtTemplWrite);
 
 /// Wrap [`std::io::Write`] to [`TemplWrite`].
-pub struct IoWrite<F>(pub F);
+pub struct IoTemplWrite<F>(pub F);
 
-impl<F: std::io::Write> TemplWrite for IoWrite<F> {
+impl<F: std::io::Write> TemplWrite for IoTemplWrite<F> {
     fn write_str(&mut self, value: &str) -> Result<()> {
         self.0.write(value.as_bytes())?;
         Ok(())
     }
 }
 
-deref!(IoWrite);
+deref!(IoTemplWrite);
 
 /// Wrap [`TemplWrite`] to [`std::fmt::Write`].
 pub struct TemplWriteFmt<F>(pub F);

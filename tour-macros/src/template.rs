@@ -72,10 +72,10 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                         continue
                     }
 
-                    let id = attr.parse_args::<Ident>()?;
+                    let attr_id = attr.parse_args::<Ident>()?;
 
-                    if id == "display" {
-                        break AttrKind::Display(id)
+                    if attr_id == "display" {
+                        break AttrKind::Display(f.ident.as_ref().cloned().unwrap())
                     }
                 };
 
@@ -83,7 +83,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                     AttrKind::None => continue,
                     AttrKind::Display(id) => {
                         displays.extend(quote! {
-                            let #id = ::tour::display::Display(&#id);
+                            let #id = ::tour::Display(&#id);
                         });
                     }
                 }

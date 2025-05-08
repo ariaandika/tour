@@ -1,11 +1,21 @@
 use std::io::{stdin, BufRead};
 use tour::Template;
 
+struct Foo;
+
+impl std::fmt::Display for Foo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Deez")
+    }
+}
+
 #[derive(Template)]
 #[template(root = "example/src/main.html")]
 struct Page {
     id: i32,
     name: String,
+    #[fmt(display)]
+    foo: Foo,
 }
 
 #[derive(Template)]
@@ -20,7 +30,8 @@ fn main() {
     loop {
         let page = Page {
             id: 4,
-            name: "<script>alert('foo')</script>".into()
+            name: "<script>alert('foo')</script>".into(),
+            foo: Foo,
         };
         let result = page.render_layout().unwrap();
 

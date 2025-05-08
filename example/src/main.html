@@ -1,6 +1,6 @@
 {{ layout root "example/src/layout.html" }}
 
-<div>Token {{ name }} status</div>
+<div>Token {{ name }} status {{ foo }}</div>
 
 {{ for i in 1..4 }} blip: {{ i.to_string() }} {{ endfor }}
 

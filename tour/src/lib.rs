@@ -5,8 +5,8 @@ mod display;
 mod error;
 
 pub use template::Template;
-pub use write::{TemplWrite, Escape};
-pub use display::TemplDisplay;
+pub use write::{TemplWrite, Escape, FmtTemplWrite, IoTemplWrite, TemplWriteFmt};
+pub use display::{TemplDisplay, Display};
 pub use error::{Error, Result};
 
 pub use tour_core::{Parser, NoopParser};
