@@ -2,5 +2,12 @@
 
 <div>Token {{ name }} status {{ foo }}</div>
 
+<div>
+  <h1>Foos</h1>
+  {{ for f in foos }}
+    {# f #}
+  {{ endfor }}
+</div>
+
 {{ for i in 1..4 }} blip: {{ i.to_string() }} {{ endfor }}
 

@@ -21,16 +21,16 @@ pub trait ExprParser {
 #[derive(Clone, Copy, PartialEq, Eq)]
 /// an expression delimiter
 pub enum Delimiter {
-    /// `{{ }}`
+    /// `{{ }}` escaped render
     Brace,
-    /// `{! !}`
+    /// `{! !}` unescaped render
     Bang,
-    /// `{% %}`
+    /// `{% %}` escaped render
     Percent,
+    /// `{# #}` escaped std::fmt::Display render
+    Hash,
     // /// `{@ @}`
     // At,
-    // /// `{# #}`
-    // Hash,
     // /// `{$ $}`
     // Dollar,
     // /// `{^ ^}`
@@ -51,6 +51,7 @@ impl Delimiter {
             b'{' => Some(Self::Brace),
             b'%' => Some(Self::Percent),
             b'!' => Some(Self::Bang),
+            b'#' => Some(Self::Hash),
             _ => None,
         }
     }
@@ -59,6 +60,7 @@ impl Delimiter {
             b'}' => Some(Self::Brace),
             b'%' => Some(Self::Percent),
             b'!' => Some(Self::Bang),
+            b'#' => Some(Self::Hash),
             _ => None,
         }
     }
@@ -254,6 +256,7 @@ impl std::fmt::Display for Delimiter {
             Self::Brace => write!(f, "brace"),
             Self::Bang => write!(f, "!"),
             Self::Percent => write!(f, "%"),
+            Self::Hash => write!(f, "#"),
         }
     }
 }

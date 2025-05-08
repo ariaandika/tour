@@ -136,12 +136,17 @@ impl ExprParser for SynParser {
                 });
             }
             ExprTempl::Expr(expr) => {
+                use Delimiter::*;
+                let elem = match delim {
+                    Hash => quote! {&::tour::Display(&#expr)},
+                    Bang | Brace | Percent => quote! {&#expr},
+                };
                 let writer = match delim {
-                    Delimiter::Bang => quote! {&mut *writer},
-                    _ => quote! {&mut ::tour::Escape(&mut *writer)},
+                    Bang => quote! {&mut *writer},
+                    Hash | Brace | Percent => quote! {&mut ::tour::Escape(&mut *writer)},
                 };
                 self.push_stack(syn::parse_quote! {
-                    #TemplDisplay::display(&#expr, #writer)?;
+                    #TemplDisplay::display(#elem, #writer)?;
                 });
             }
             ExprTempl::If(templ) => {

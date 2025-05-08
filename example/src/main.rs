@@ -1,6 +1,7 @@
 use std::io::{stdin, BufRead};
 use tour::Template;
 
+#[derive(Clone, Copy)]
 struct Foo;
 
 impl std::fmt::Display for Foo {
@@ -16,6 +17,7 @@ struct Page {
     name: String,
     #[fmt(display)]
     foo: Foo,
+    foos: Vec<Foo>,
 }
 
 #[derive(Template)]
@@ -32,6 +34,7 @@ fn main() {
             id: 4,
             name: "<script>alert('foo')</script>".into(),
             foo: Foo,
+            foos: vec![Foo;4],
         };
         let result = page.render_layout().unwrap();
 
