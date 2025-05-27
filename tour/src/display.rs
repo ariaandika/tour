@@ -52,6 +52,12 @@ impl TemplDisplay for String {
     }
 }
 
+impl TemplDisplay for std::borrow::Cow<'_, str> {
+    fn display(&self, f: &mut impl TemplWrite) -> Result<()> {
+        f.write_str(self)
+    }
+}
+
 macro_rules! render_int {
     ($t:ty) => {
         impl TemplDisplay for $t {
