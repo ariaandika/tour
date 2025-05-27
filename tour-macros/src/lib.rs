@@ -1,4 +1,6 @@
-//! macros for `tour` template
+//! Macros for [`tour`][1] template
+//!
+//! [1]: <https://docs.rs/tour>
 
 mod syntax;
 mod spec;
@@ -6,7 +8,7 @@ mod spec;
 mod parser;
 mod template;
 
-/// derive macro for `Template` trait
+/// Derive macro for `Template` trait
 #[proc_macro_derive(Template, attributes(template,fmt))]
 pub fn template(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     match template::template(syn::parse_macro_input!(input as syn::DeriveInput)) {

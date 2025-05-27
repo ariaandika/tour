@@ -3,6 +3,7 @@ use std::fmt;
 
 use crate::{Result, TemplWrite};
 
+/// Analogous to [`std::fmt::Display`] without the [`Formatter`][std::fmt::Formatter].
 pub trait TemplDisplay {
     fn display(&self, f: &mut impl TemplWrite) -> Result<()>;
 }

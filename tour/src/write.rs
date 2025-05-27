@@ -1,6 +1,7 @@
 //! The [`TemplWrite`] trait
 use crate::Result;
 
+/// Analogous to [`std::fmt::Write`] without the [`Formatter`][std::fmt::Formatter].
 pub trait TemplWrite {
     /// render a buffer with escapes
     fn write_str(&mut self, value: &str) -> Result<()>;

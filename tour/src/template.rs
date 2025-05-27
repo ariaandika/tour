@@ -1,5 +1,9 @@
 use crate::{Result, TemplWrite};
 
+/// A template renderer.
+///
+/// User may not implement this directly but instead use provided derive macro
+/// [`Template`][tour_macros::Template].
 pub trait Template {
     fn render_into(&self, render: &mut impl TemplWrite) -> Result<()>;
 

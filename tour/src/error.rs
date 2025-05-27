@@ -1,8 +1,10 @@
 use std::{fmt, io};
 use tour_core::ParseError;
 
+/// [`Result`][std::result::Result] alias for [`Error`].
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+/// An error that can occur during rendering.
 #[derive(Debug)]
 pub enum Error {
     Parse(ParseError),
