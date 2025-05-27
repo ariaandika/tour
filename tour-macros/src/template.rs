@@ -1,10 +1,10 @@
 //! `Template` derive macro
-use crate::{parser::{LayoutInfo, Reload, SynOutput, SynParser}, TemplWrite, TemplDisplay};
+use crate::{parser::{LayoutInfo, Reload, SynParser}, TemplWrite, TemplDisplay};
 use proc_macro2::{Span, TokenStream};
 use quote::{format_ident, quote};
 use std::fs;
 use syn::{punctuated::Punctuated, *};
-use tour_core::{Parser, ParseError, Template};
+use tour_core::{Parser, ParseError};
 
 macro_rules! error {
     (@ $s:expr, $($tt:tt)*) => {
@@ -96,7 +96,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     };
 
     // the template
-    let Template { output: SynOutput { layout, stmts, reload }, statics } = generate::template(&source, reload)?;
+    let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(&source, reload)?;
 
     // 3. sources, array of string containing static content
     let sources = generate::sources(&path, &reload, &statics);
@@ -146,7 +146,7 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
     // 2. destructor, no destructor in layout
 
     // the template
-    let Template { output: SynOutput { layout, stmts, reload }, statics } = generate::template(&source, reload)?;
+    let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(&source, reload)?;
 
     // 3. sources, array of string containing static content
     let sources = generate::sources(&path, &reload, &statics);
@@ -177,7 +177,7 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
 
             let (source,path) = fs_read(source, !is_root)?;
             let include_source = generate::include_source(&path);
-            let Template { output: SynOutput { layout: l1, stmts, reload: r1 }, statics } = generate::template(&source, reload)?;
+            let SynParser { layout: l1, root: stmts, reload: r1, statics, .. } = generate::template(&source, reload)?;
             let sources = generate::sources(&path, &r1, &statics);
 
             let name = format_ident!("InnerLayout{counter}");
@@ -302,18 +302,18 @@ mod generate {
         path.as_ref().map(|path|quote!{const _: &str = include_str!(#path);})
     }
 
-    pub fn template(source: &str, reload: Reload) -> Result<Template<'_, SynOutput>> {
+    pub fn template(source: &str, reload: Reload) -> Result<SynParser> {
         match Parser::new(source, SynParser::new(reload)).parse() {
             Ok(ok) => Ok(ok),
             Err(ParseError::Generic(err)) => error!("{err}"),
         }
     }
 
-    pub fn sources(path: &Option<String>, reload: &Reload, statics: &[&str]) -> [TokenStream;2] {
+    pub fn sources(path: &Option<String>, reload: &Reload, statics: &[String]) -> [TokenStream;2] {
         match (path.is_some(), reload.as_bool()) {
             (true,Ok(true)) => [
                 quote!{ let sources = ::std::fs::read_to_string(#path)?; },
-                quote!{ let sources = ::tour::Parser::new(&sources,::tour::NoopParser).parse()?.statics; },
+                quote!{ let sources = ::tour::Parser::new(&sources,::tour::StaticVisitor::new()).parse()?.statics; },
             ],
             (true,Ok(false)) | (false,Ok(false)) => <_>::default(),
             (true, Err(cond)) => [
@@ -326,7 +326,7 @@ mod generate {
                 },
                 quote! {
                     let sources = if #cond {
-                        ::tour::Parser::new(&sources,::tour::NoopParser).parse()?.statics
+                        ::tour::Parser::new(&sources,::tour::StaticVisitor::new()).parse()?.statics
                     } else {
                         []
                     };

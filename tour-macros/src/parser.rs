@@ -18,7 +18,7 @@ pub struct LayoutInfo {
     pub is_root: bool,
 }
 
-enum Scope {
+pub enum Scope {
     Root { stmts: Vec<Stmt> },
     If {
         templ: IfTempl,
@@ -62,20 +62,14 @@ impl Reload {
     }
 }
 
-/// [`ExprParser`] output of [`SynParser`]
-pub struct SynOutput {
-    pub layout: Option<LayoutInfo>,
-    pub stmts: Vec<Stmt>,
-    pub reload: Reload,
-}
-
-/// [`ExprParser`] implementation via syn
+/// [`Visitor`] implementation via syn
 pub struct SynParser {
-    layout: Option<LayoutInfo>,
-    root: Vec<Stmt>,
-    scopes: Vec<Scope>,
-    static_len: usize,
-    reload: Reload,
+    pub layout: Option<LayoutInfo>,
+    pub root: Vec<Stmt>,
+    pub scopes: Vec<Scope>,
+    pub static_len: usize,
+    pub reload: Reload,
+    pub statics: Vec<String>,
 }
 
 impl SynParser {
@@ -86,6 +80,7 @@ impl SynParser {
             scopes: vec![],
             static_len: 0,
             reload,
+            statics: vec![],
         }
     }
 
@@ -97,9 +92,7 @@ impl SynParser {
     }
 }
 
-impl Visitor for SynParser {
-    type Output = SynOutput;
-
+impl Visitor<'_> for SynParser {
     fn visit_static(&mut self, source: &str) -> Result<()> {
         let idx = Index::from(self.static_len);
         let src = match self.reload.as_bool() {
@@ -109,6 +102,7 @@ impl Visitor for SynParser {
 
         self.static_len += 1;
         self.push_stack(syn::parse_quote!( #TemplDisplay::display(#src, writer)?; ));
+        self.statics.push(source.to_owned());
 
         Ok(())
     }
@@ -248,16 +242,17 @@ impl Visitor for SynParser {
         Ok(())
     }
 
-    fn finish(mut self) -> Result<Self::Output> {
+    fn finish(mut self) -> Result<Self> {
         if let Some(scope) = self.scopes.pop() {
             error!("unclosed `{scope}` scope")
         }
 
-        Ok(SynOutput {
-            layout: self.layout,
-            stmts: self.root,
-            reload: self.reload,
-        })
+        // Ok(SynOutput {
+        //     layout: self.layout,
+        //     stmts: self.root,
+        //     reload: self.reload,
+        // })
+        Ok(self)
     }
 }
 

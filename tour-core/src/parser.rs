@@ -1,41 +1,27 @@
 use crate::{Delimiter, ParseError, Result, visitor::Visitor};
 
-/// Parse output.
-///
-/// Template then can be generated to static source code at compile time or static content at
-/// runtime.
-pub struct Template<'a, E> {
-    /// Expression parser output.
-    pub output: E,
-    /// Static contents.
-    pub statics: Vec<&'a str>
-}
-
 /// Template source code parser.
-pub struct Parser<'a,E> {
+pub struct Parser<'a,V> {
     source: &'a [u8],
 
     // parser states
     index: usize,
     state: ParseState,
-    expr: E,
-
-    statics: Vec<&'a str>,
+    visitor: V,
 }
 
-impl<'a, E> Parser<'a, E> {
+impl<'a, V> Parser<'a, V> {
     /// Create new [`Parser`].
     ///
-    /// It accepts an [`ExprParser`].
+    /// Requires a [`Visitor`] implementation.
     ///
-    /// For static content only, use [`NoopParser`][super::NoopParser].
-    pub fn new(source: &'a str, expr_parser: E) -> Self {
+    /// For static content only, use [`StaticVisitor`][super::StaticVisitor].
+    pub fn new(source: &'a str, visitor: V) -> Self {
         Self {
             source: source.as_bytes(),
             index: 0,
             state: ParseState::Static { start: 0 },
-            expr: expr_parser,
-            statics: vec![],
+            visitor,
         }
     }
 }
@@ -47,12 +33,12 @@ enum ParseState {
     CloseExpr { start: usize, brace: usize, open_delim: Delimiter, close_delim: Delimiter, },
 }
 
-impl<'a,E> Parser<'a,E>
+impl<'a,V> Parser<'a,V>
 where
-    E: Visitor,
+    V: Visitor<'a>,
 {
     /// Start parsing.
-    pub fn parse(mut self) -> Result<Template<'a,E::Output>> {
+    pub fn parse(mut self) -> Result<V> {
         loop {
             let current = self.index;
             let Some(byte) = self.source.get(current) else {
@@ -79,7 +65,10 @@ where
                         Some(open_delim) => {
                             self.index += 1;
                             self.state = ParseState::Expr { start: current + 1, open_delim };
-                            self.collect_static(&self.source[start..brace])?;
+                            let statics = Self::parse_str(&self.source[start..brace]);
+                            if !statics.is_empty() {
+                                self.visitor.visit_static(statics)?;
+                            }
                         }
                         None => self.state = ParseState::Static { start }
                     }
@@ -96,7 +85,7 @@ where
 
                             self.index += 1;
                             self.state = ParseState::Static { start: current + 1 };
-                            self.parse_expr(&self.source[start..brace],open_delim)?;
+                            self.visitor.visit_expr(Self::parse_str(&self.source[start..brace]), open_delim)?;
                         }
                         _ => self.state = ParseState::Expr { start, open_delim }
                     }
@@ -104,38 +93,24 @@ where
             }
         }
 
-        Ok(Template {
-            output: self.expr.finish()?,
-            statics: self.statics,
-        })
+        self.visitor.finish()
     }
 
     fn parse_leftover(&mut self) -> Result<()> {
         match self.state {
             ParseState::Static { start } | ParseState::OpenExpr { start, .. } => {
-                self.collect_static(&self.source[start..])
-            }
+                let statics = Self::parse_str(&self.source[start..]);
+                if statics.is_empty() {
+                    Ok(())
+                } else {
+                    self.visitor.visit_static(statics)
+                }
+            },
             ParseState::Expr { .. } | ParseState::CloseExpr { .. } => {
                 // we dont have the closing delimiter here, just bail out
                 Err(ParseError::Generic("unclosed expression".to_owned()))
-            }
+            },
         }
-    }
-
-    fn collect_static(&mut self, source: &'a [u8]) -> Result<()> {
-        if source.is_empty() {
-            return Ok(())
-        }
-
-        let source = Self::parse_str(source);
-        self.statics.push(source);
-        self.expr.visit_static(source)?;
-
-        Ok(())
-    }
-
-    fn parse_expr(&mut self, source: &[u8], delim: Delimiter) -> Result<()> {
-        self.expr.visit_expr(Self::parse_str(source), delim)
     }
 
     fn parse_str(source: &[u8]) -> &str {

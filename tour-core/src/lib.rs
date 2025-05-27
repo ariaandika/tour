@@ -31,5 +31,5 @@ mod error;
 
 pub use syntax::Delimiter;
 pub use visitor::{Visitor, StaticVisitor};
-pub use parser::{Parser, Template};
+pub use parser::Parser;
 pub use error::{Result, ParseError};
