@@ -1,8 +1,8 @@
 
-/// result alias for [`ParseError`]
+/// [`Result`][std::result::Result] alias for [`ParseError`].
 pub type Result<T,E = ParseError> = core::result::Result<T,E>;
 
-/// an error that may occur during parsing in [`Parser`]
+/// An error that may occur during parsing in [`Parser`][super::Parser].
 #[derive(Debug)]
 pub enum ParseError {
     Generic(String),
