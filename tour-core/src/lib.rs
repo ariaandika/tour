@@ -30,6 +30,6 @@ mod parser;
 mod error;
 
 pub use syntax::Delimiter;
-pub use visitor::{ExprParser, NoopParser};
+pub use visitor::{Visitor, StaticVisitor};
 pub use parser::{Parser, Template};
 pub use error::{Result, ParseError};

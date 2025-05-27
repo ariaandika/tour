@@ -1,33 +1,33 @@
 use crate::{Delimiter, Result};
 
 /// An expression parser.
-pub trait ExprParser {
+pub trait Visitor {
     /// Finished parser output.
     type Output;
 
     /// Collect static content.
-    fn collect_static(&mut self, source: &str) -> Result<()>;
+    fn visit_static(&mut self, source: &str) -> Result<()>;
 
     /// Collect expression.
-    fn parse_expr(&mut self, source: &str, delim: Delimiter) -> Result<()>;
+    fn visit_expr(&mut self, source: &str, delim: Delimiter) -> Result<()>;
 
-    /// parser output before consumed in codegen
+    /// Visitor output.
     fn finish(self) -> Result<Self::Output>;
 }
 
-/// [`ExprParser`] implementation that does nothing.
+/// [`Visitor`] implementation that only collect static content.
 //
 // this is used in runtime template reloading
-pub struct NoopParser;
+pub struct StaticVisitor;
 
-impl ExprParser for NoopParser {
+impl Visitor for StaticVisitor {
     type Output = ();
 
-    fn collect_static(&mut self, _: &str) -> Result<()> {
+    fn visit_static(&mut self, _: &str) -> Result<()> {
         Ok(())
     }
 
-    fn parse_expr(&mut self, _: &str, _: Delimiter) -> Result<()> {
+    fn visit_expr(&mut self, _: &str, _: Delimiter) -> Result<()> {
         Ok(())
     }
 

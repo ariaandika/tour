@@ -1,4 +1,4 @@
-use crate::{Delimiter, ParseError, Result, visitor::ExprParser};
+use crate::{Delimiter, ParseError, Result, visitor::Visitor};
 
 /// Parse output.
 ///
@@ -49,7 +49,7 @@ enum ParseState {
 
 impl<'a,E> Parser<'a,E>
 where
-    E: ExprParser,
+    E: Visitor,
 {
     /// Start parsing.
     pub fn parse(mut self) -> Result<Template<'a,E::Output>> {
@@ -129,13 +129,13 @@ where
 
         let source = Self::parse_str(source);
         self.statics.push(source);
-        self.expr.collect_static(source)?;
+        self.expr.visit_static(source)?;
 
         Ok(())
     }
 
     fn parse_expr(&mut self, source: &[u8], delim: Delimiter) -> Result<()> {
-        self.expr.parse_expr(Self::parse_str(source), delim)
+        self.expr.visit_expr(Self::parse_str(source), delim)
     }
 
     fn parse_str(source: &[u8]) -> &str {

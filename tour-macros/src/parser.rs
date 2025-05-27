@@ -4,7 +4,7 @@
 use crate::{spec, syntax::*, TemplDisplay};
 use quote::{quote, ToTokens};
 use syn::*;
-use tour_core::{Delimiter, ParseError, ExprParser, Result};
+use tour_core::{Delimiter, ParseError, Visitor, Result};
 
 macro_rules! error {
     ($($tt:tt)*) => {
@@ -97,10 +97,10 @@ impl SynParser {
     }
 }
 
-impl ExprParser for SynParser {
+impl Visitor for SynParser {
     type Output = SynOutput;
 
-    fn collect_static(&mut self, source: &str) -> Result<()> {
+    fn visit_static(&mut self, source: &str) -> Result<()> {
         let idx = Index::from(self.static_len);
         let src = match self.reload.as_bool() {
             Ok(cond) => if cond { quote! {&sources[#idx]} } else { quote! {#source} },
@@ -113,7 +113,7 @@ impl ExprParser for SynParser {
         Ok(())
     }
 
-    fn parse_expr(&mut self, source: &str, delim: Delimiter) -> Result<()> {
+    fn visit_expr(&mut self, source: &str, delim: Delimiter) -> Result<()> {
         let ok = match syn::parse_str(source) {
             Ok(ok) => ok,
             Err(err) => error!("failed to parse expr: {err}"),
