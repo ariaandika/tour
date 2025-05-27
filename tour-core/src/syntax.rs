@@ -1,8 +1,8 @@
 
-#[derive(Clone, Copy, PartialEq, Eq)]
 /// An expression delimiter.
-///
-/// Opening and closing delimiter must be equal.
+//
+// Opening and closing delimiter must be equal.
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Delimiter {
     /// `{{ }}` escaped render.
     Brace,
@@ -57,7 +57,7 @@ impl Delimiter {
 }
 
 impl std::fmt::Display for Delimiter {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Self::Brace => f.write_str("brace"),
             Self::Bang => f.write_str("!"),
@@ -67,5 +67,4 @@ impl std::fmt::Display for Delimiter {
         }
     }
 }
-
 

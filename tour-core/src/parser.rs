@@ -1,43 +1,17 @@
-//! attempt to split the expression parser as trait
-//! to prevent dependencies on syn and friends
-use crate::Delimiter;
+use crate::{Delimiter, ParseError, Result, expr::ExprParser};
 
-/// a template expression parser
-pub trait ExprParser {
-    /// finished parser output
-    ///
-    /// this will be consumed in codegen after parsing
-    type Output;
-
-    /// save static content
-    fn collect_static(&mut self, source: &str) -> Result<()>;
-
-    /// parse expression
-    fn parse_expr(&mut self, source: &str, delim: Delimiter) -> Result<()>;
-
-    /// parser output before consumed in codegen
-    fn finish(self) -> Result<Self::Output>;
-}
-
-/// parse output
+/// Parse output.
 ///
-/// template then can be generated to static source code at compile time
-/// or static content at runtime
+/// Template then can be generated to static source code at compile time or static content at
+/// runtime.
 pub struct Template<'a, E> {
-    /// expression parser output
+    /// Expression parser output.
     pub output: E,
-    /// static contents
+    /// Static contents.
     pub statics: Vec<&'a str>
 }
 
-enum ParseState {
-    Static { start: usize },
-    Expr { start: usize, open_delim: Delimiter },
-    OpenExpr { start: usize, brace: usize, },
-    CloseExpr { start: usize, brace: usize, open_delim: Delimiter, close_delim: Delimiter, },
-}
-
-/// template source code parser
+/// Template source code parser.
 pub struct Parser<'a,E> {
     source: &'a [u8],
 
@@ -49,12 +23,12 @@ pub struct Parser<'a,E> {
     statics: Vec<&'a str>,
 }
 
-impl<'a,E> Parser<'a,E> {
-    /// create new parser
+impl<'a, E> Parser<'a, E> {
+    /// Create new [`Parser`].
     ///
-    /// it requires an expression parser
+    /// It accepts an [`ExprParser`].
     ///
-    /// for static content only, use [`NoopParser`]
+    /// For static content only, use [`NoopParser`][super::NoopParser].
     pub fn new(source: &'a str, expr_parser: E) -> Self {
         Self {
             source: source.as_bytes(),
@@ -66,11 +40,18 @@ impl<'a,E> Parser<'a,E> {
     }
 }
 
+enum ParseState {
+    Static { start: usize },
+    Expr { start: usize, open_delim: Delimiter },
+    OpenExpr { start: usize, brace: usize, },
+    CloseExpr { start: usize, brace: usize, open_delim: Delimiter, close_delim: Delimiter, },
+}
+
 impl<'a,E> Parser<'a,E>
 where
     E: ExprParser,
 {
-    /// start parsing
+    /// Start parsing.
     pub fn parse(mut self) -> Result<Template<'a,E::Output>> {
         loop {
             let current = self.index;
@@ -160,46 +141,6 @@ where
     fn parse_str(source: &[u8]) -> &str {
         std::str::from_utf8(source)
             .expect("the input is string and we only check using byte char")
-    }
-}
-
-/// an [`ExprParser`] that does nothing
-///
-/// this used in runtime template reloading
-pub struct NoopParser;
-
-impl ExprParser for NoopParser {
-    type Output = ();
-
-    fn collect_static(&mut self, _: &str) -> Result<()> {
-        Ok(())
-    }
-
-    fn parse_expr(&mut self, _: &str, _: Delimiter) -> Result<()> {
-        Ok(())
-    }
-
-    fn finish(self) -> Result<Self::Output> {
-        Ok(())
-    }
-}
-
-/// result alias for [`ParseError`]
-pub type Result<T,E = ParseError> = core::result::Result<T,E>;
-
-/// an error that may occur during parsing in [`Parser`]
-#[derive(Debug)]
-pub enum ParseError {
-    Generic(String),
-}
-
-impl std::error::Error for ParseError {}
-
-impl std::fmt::Display for ParseError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ParseError::Generic(s) => f.write_str(s),
-        }
     }
 }
 

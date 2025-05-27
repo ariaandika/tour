@@ -22,8 +22,11 @@
 //! [2]: <https://docs.rs/tour-macros>
 //! [3]: <https://docs.rs/syn>
 mod syntax;
+mod expr;
 mod parser;
+mod error;
 
 pub use syntax::Delimiter;
-pub use parser::{Parser, Template, ExprParser, NoopParser, ParseError, Result};
-
+pub use expr::{ExprParser, NoopParser};
+pub use parser::{Parser, Template};
+pub use error::{Result, ParseError};
