@@ -2,7 +2,7 @@ use std::borrow::Cow;
 
 use crate::{Delimiter, Result};
 
-/// An expression parser.
+/// This trait represents a visitor that collect input sources through a [`Parser`][super::Parser].
 pub trait Visitor<'a>: Sized {
     /// Collect static content.
     fn visit_static(&mut self, source: &'a str) -> Result<()>;

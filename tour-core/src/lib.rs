@@ -21,6 +21,18 @@
 //! There is also [`StaticVisitor`] that only collect static content. This implementations is used
 //! in runtime template reloading.
 //!
+//! # Example
+//!
+//! ```
+//! use tour_core::{Parser, StaticVisitor};
+//!
+//! let source = "Hello {{ name.to_uppercase() }} !";
+//!
+//! let visitor = Parser::new(source, StaticVisitor::new()).parse().unwrap();
+//!
+//! assert_eq!(&visitor.statics[..], &["Hello "," !"]);
+//! ```
+//!
 //! [1]: <https://docs.rs/tour>
 //! [2]: <https://docs.rs/tour-macros>
 //! [3]: <https://docs.rs/syn>

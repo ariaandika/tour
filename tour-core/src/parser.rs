@@ -1,6 +1,8 @@
 use crate::{Delimiter, ParseError, Result, visitor::Visitor};
 
 /// Template source code parser.
+///
+/// For more details see the [crate level docs][crate].
 pub struct Parser<'a,V> {
     source: &'a [u8],
 
