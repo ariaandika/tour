@@ -16,7 +16,7 @@ struct Page {
     id: i32,
     name: String,
     #[fmt(display)]
-    foo: Foo,
+    deez: Foo,
     foos: Vec<Foo>,
 }
 
@@ -33,7 +33,7 @@ fn main() {
         let page = Page {
             id: 4,
             name: "<script>alert('foo')</script>".into(),
-            foo: Foo,
+            deez: Foo,
             foos: vec![Foo;4],
         };
         let result = page.render_layout().unwrap();
