@@ -1,7 +1,7 @@
-use std::{borrow::Cow, fs};
-use syn::{*, punctuated::Punctuated};
+use std::borrow::Cow;
+use syn::{punctuated::Punctuated, *};
 
-use crate::error;
+use crate::shared::{Reload, SourceTempl, error};
 
 // ===== AttrData =====
 
@@ -10,51 +10,6 @@ pub struct AttrData {
     pub source: SourceTempl,
     /// `#[path = "debug" | "always" | "never" | <Expr>]`
     pub reload: Reload,
-}
-
-#[derive(Clone)]
-pub enum Reload {
-    Debug,
-    Always,
-    Never,
-    Expr(Expr),
-}
-
-pub enum SourceTempl {
-    Path(String),
-    Root(String),
-    Source(String),
-}
-
-impl SourceTempl {
-    pub fn resolve_source(&self) -> Result<Cow<'_,str>> {
-        match self.resolve_path() {
-            Some(path) => Ok(error!(!fs::read_to_string(path)).into()),
-            None => if let Self::Source(src) = &self {
-                Ok(src.into())
-            } else {
-                unreachable!()
-            },
-        }
-    }
-
-    /// Return `Some` if template is external and have path.
-    pub fn resolve_path(&self) -> Option<String> {
-        match self {
-            Self::Path(path) => {
-                let mut cwd = std::env::current_dir().expect("failed to get current directory");
-                cwd.push("templates");
-                cwd.push(path);
-                Some(cwd.to_string_lossy().into_owned())
-            },
-            Self::Root(path) => {
-                let mut cwd = std::env::current_dir().expect("failed to get current directory");
-                cwd.push(path);
-                Some(cwd.to_string_lossy().into_owned())
-            }
-            Self::Source(_) => None,
-        }
-    }
 }
 
 impl AttrData {

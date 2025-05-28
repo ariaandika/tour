@@ -5,7 +5,10 @@ use quote::{ToTokens, quote};
 use syn::*;
 use tour_core::{Delimiter, ParseError, Result, Visitor};
 
-use crate::{TemplDisplay, attribute::Reload, shared, syntax::*};
+use crate::{
+    shared::{self, Reload, TemplDisplay},
+    syntax::*,
+};
 
 macro_rules! error {
     ($($tt:tt)*) => {

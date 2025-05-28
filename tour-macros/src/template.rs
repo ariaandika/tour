@@ -6,10 +6,9 @@ use syn::*;
 use tour_core::{ParseError, Parser};
 
 use crate::{
-    TemplDisplay, TemplWrite,
-    attribute::{AttrData, AttrField, FmtTempl, Reload},
-    error,
+    attribute::{AttrData, AttrField, FmtTempl},
     parser::{LayoutInfo, SynParser},
+    shared::{Reload, TemplDisplay, TemplWrite, error},
 };
 
 /// output code can be split to 4 parts:
