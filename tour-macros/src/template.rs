@@ -1,14 +1,13 @@
 //! `Template` derive macro
 use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
-use std::fs;
 use syn::*;
 use tour_core::{ParseError, Parser};
 
 use crate::{
     attribute::{AttrData, AttrField, FmtTempl},
-    parser::{LayoutInfo, SynParser},
-    shared::{Reload, TemplDisplay, TemplWrite, error},
+    parser::SynParser,
+    shared::{error, Reload, SourceTempl, TemplDisplay, TemplWrite},
 };
 
 /// output code can be split to 4 parts:
@@ -68,12 +67,12 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     };
 
     // the template
-    let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(attr.resolve_source()?.as_ref(), attr.reload.clone())?;
+    let SynParser { layout_source, root: stmts, reload, statics, .. } = generate::template(attr.resolve_source()?.as_ref(), attr.reload.clone())?;
 
     // 3. sources, array of string containing static content, omited on release
     let sources = generate::sources(path.as_deref(), &reload, &statics);
 
-    let layout = match layout {
+    let layout = match layout_source {
         Some(layout) => {
             let layout = template_layout(layout, reload)?;
             Some(quote! {
@@ -108,9 +107,9 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     })
 }
 
-fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
-    let LayoutInfo { source, is_root } = templ;
-    let (source,path) = fs_read(source, !is_root)?;
+fn template_layout(first_templ_source: SourceTempl, reload: Reload) -> Result<TokenStream> {
+    let path = first_templ_source.resolve_path();
+    let source = first_templ_source.resolve_source()?;
 
     // 1. include_source, for file template, an `include_str` to trigger recompile on template change
     let include_source = generate::include_str_source(path.as_deref());
@@ -120,7 +119,7 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
     // no `#[fmt(display)]` in layout
 
     // the template
-    let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(&source, reload)?;
+    let SynParser { layout_source: layout, root: stmts, reload, statics, .. } = generate::template(&source, reload)?;
 
     // 3. sources, array of string containing static content
     let sources = generate::sources(path.as_deref(), &reload, &statics);
@@ -156,12 +155,13 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
         }
     };
 
-    while let Some(LayoutInfo { source, is_root }) = layout.take() {
+    while let Some(layout_source) = layout.take() {
         counter += 1;
+        let path = layout_source.resolve_path();
+        let source = layout_source.resolve_source()?;
 
-        let (source,path) = fs_read(source, !is_root)?;
         let include_source = generate::include_str_source(path.as_deref());
-        let SynParser { layout: l1, root: stmts, reload: r1, statics, .. } = generate::template(&source, reload)?;
+        let SynParser { layout_source: l1, root: stmts, reload: r1, statics, .. } = generate::template(&source, reload)?;
         let sources = generate::sources(path.as_deref(), &r1, &statics);
 
         let name = format_ident!("InnerLayout{counter}");
@@ -190,19 +190,6 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
         #inner
         #TemplDisplay::display(&#name_inner(self), writer)
     }})
-}
-
-fn fs_read(path: String, is_template: bool) -> Result<(String, Option<String>)> {
-    let mut abs_path = error!(!std::env::current_dir());
-    if is_template {
-        abs_path.push("templates")
-    }
-    abs_path.push(&path);
-    let path = error!(!abs_path.to_str(),"non utf8 path").to_owned();
-    match fs::read_to_string(&path) {
-        Ok(ok) => Ok((ok,Some(path))),
-        Err(err) => error!("failed to read template `{path}`: {err}"),
-    }
 }
 
 mod generate {

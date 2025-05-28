@@ -6,7 +6,7 @@ use syn::*;
 use tour_core::{Delimiter, ParseError, Result, Visitor};
 
 use crate::{
-    shared::{self, Reload, TemplDisplay},
+    shared::{self, Reload, SourceTempl, TemplDisplay},
     syntax::*,
 };
 
@@ -14,12 +14,6 @@ macro_rules! error {
     ($($tt:tt)*) => {
         return Err(ParseError::Generic(format!($($tt)*)))
     };
-}
-
-/// layout information from a template
-pub struct LayoutInfo {
-    pub source: String,
-    pub is_root: bool,
 }
 
 pub enum Scope {
@@ -50,7 +44,7 @@ impl Scope {
 
 /// [`Visitor`] implementation via syn
 pub struct SynParser {
-    pub layout: Option<LayoutInfo>,
+    pub layout_source: Option<SourceTempl>,
     pub root: Vec<Stmt>,
     pub scopes: Vec<Scope>,
     pub static_len: usize,
@@ -61,7 +55,7 @@ pub struct SynParser {
 impl SynParser {
     pub fn new(reload: Reload) -> Self {
         Self {
-            layout: None,
+            layout_source: None,
             root: vec![],
             scopes: vec![],
             static_len: 0,
@@ -102,12 +96,13 @@ impl Visitor<'_> for SynParser {
         match ok {
             ExprTempl::Layout(LayoutTempl { root_token, source, .. }) |
             ExprTempl::Extends(ExtendsTempl { root_token, source, .. }) => {
-                if self.layout.is_some() {
+                if self.layout_source.is_some() {
                     error!("cannot have 2 `extends` or `layout`")
                 }
-                self.layout.replace(LayoutInfo {
-                    source: source.value(),
-                    is_root: root_token.is_some(),
+                self.layout_source.replace(if root_token.is_some() {
+                    SourceTempl::Root(source.value())
+                } else {
+                    SourceTempl::Path(source.value())
                 });
             }
             ExprTempl::Yield(_yield) => {

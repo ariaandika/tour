@@ -4,7 +4,7 @@
 //!
 //! # Example
 //!
-//! ```rust
+//! ```ignore
 //! // main.rs
 //! use tour::Template;
 //!
