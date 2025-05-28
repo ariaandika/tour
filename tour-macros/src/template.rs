@@ -1,49 +1,36 @@
 //! `Template` derive macro
-use crate::{parser::{LayoutInfo, Reload, SynParser}, TemplWrite, TemplDisplay};
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{format_ident, quote};
 use std::fs;
-use syn::{punctuated::Punctuated, *};
-use tour_core::{Parser, ParseError};
+use syn::*;
+use tour_core::{ParseError, Parser};
 
-macro_rules! error {
-    (@ $s:expr, $($tt:tt)*) => {
-        return Err(Error::new($s, format!($($tt)*)))
-    };
-    (!$s:expr, $($tt:tt)*) => {
-        match $s { Some(ok) => ok, None => error!($($tt)*), }
-    };
-    (!$s:expr) => {
-        match $s { Ok(ok) => ok, Err(err) => error!("{err}"), }
-    };
-    ($s:expr, $($tt:tt)*) => {
-        error!(@ $s.span(), $($tt)*)
-    };
-    ($($tt:tt)*) => {
-        error!(@ Span::call_site(), $($tt)*)
-    };
-}
+use crate::{
+    TemplDisplay, TemplWrite,
+    attribute::{AttrData, AttrField, FmtTempl, Reload},
+    error,
+    parser::{LayoutInfo, SynParser},
+};
 
 /// output code can be split to 4 parts:
 ///
 /// 1. include_source, for file template, an `include_str` to trigger recompile on template change
 /// 2. destructor, for named fields, destructor for convenient
-/// 3. sources, array of string containing static content
+/// 3. sources, array of string containing static content, omited on release
 /// 4. statements, the actual rendering or logic code
 ///
 /// input provided via macro attributes
 ///
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
-    let DeriveInput { attrs, vis: _, ident, generics, data } = input;
+    let DeriveInput { mut attrs, vis: _, ident, generics, mut data } = input;
 
     let (g1,g2,g3) = generics.split_for_impl();
 
-    let attrs = find_template_attr(attrs)?;
-    let (source,path) = find_source(&attrs)?;
-    let reload = find_reload(&attrs)?;
+    let attr = AttrData::from_attr(&mut attrs)?;
+    let path = attr.resolve_path();
 
     // 1. include_source, for file template, an `include_str` to trigger recompile on template change
-    let include_source = generate::include_source(&path);
+    let include_source = generate::include_str_source(path.as_deref());
 
     // 2. destructor, for named fields, destructor for convenient
     let destructor = match &data {
@@ -56,36 +43,22 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     };
 
     // field with `#[fmt(display)]` attribute
-    let displays = match &data {
+    let displays = match &mut data {
         Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
             let mut displays = quote! {};
 
-            for f in &data.fields {
-                let mut attrs = f.attrs.iter();
+            for field in &mut data.fields {
+                let attr = AttrField::from_attr(&mut field.attrs)?;
+                let id = field.ident.as_ref().cloned().unwrap();
 
-                let attr = loop {
-                    let Some(attr) = attrs.next() else {
-                        break AttrKind::None
-                    };
-
-                    if !attr.path().is_ident("fmt") {
-                        continue
-                    }
-
-                    let attr_id = attr.parse_args::<Ident>()?;
-
-                    if attr_id == "display" {
-                        break AttrKind::Display(f.ident.as_ref().cloned().unwrap())
-                    }
-                };
-
-                match attr {
-                    AttrKind::None => continue,
-                    AttrKind::Display(id) => {
-                        displays.extend(quote! {
-                            let #id = ::tour::Display(&#id);
-                        });
-                    }
+                match &attr.fmt {
+                    Some(FmtTempl::Display) => displays.extend(quote! {
+                        let #id = ::tour::Display(&#id);
+                    }),
+                    Some(FmtTempl::Debug) => displays.extend(quote! {
+                        let #id = ::tour::Display(&#id);
+                    }),
+                    None => continue,
                 }
             }
 
@@ -96,10 +69,10 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     };
 
     // the template
-    let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(&source, reload)?;
+    let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(attr.resolve_source()?.as_ref(), attr.reload.clone())?;
 
-    // 3. sources, array of string containing static content
-    let sources = generate::sources(&path, &reload, &statics);
+    // 3. sources, array of string containing static content, omited on release
+    let sources = generate::sources(path.as_deref(), &reload, &statics);
 
     let layout = match layout {
         Some(layout) => {
@@ -141,30 +114,67 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
     let (source,path) = fs_read(source, !is_root)?;
 
     // 1. include_source, for file template, an `include_str` to trigger recompile on template change
-    let include_source = generate::include_source(&path);
+    let include_source = generate::include_str_source(path.as_deref());
 
     // 2. destructor, no destructor in layout
+
+    // no `#[fmt(display)]` in layout
 
     // the template
     let SynParser { layout, root: stmts, reload, statics, .. } = generate::template(&source, reload)?;
 
     // 3. sources, array of string containing static content
-    let sources = generate::sources(&path, &reload, &statics);
+    let sources = generate::sources(path.as_deref(), &reload, &statics);
 
-    // nested layout
-    if layout.is_some() {
-        let mut reload = reload;
-        let mut layout = layout;
-        let mut counter = 0;
+    if layout.is_none() {
+        return Ok(quote! {{
+            #include_source
+            let layout_inner = &*self;
+            #(#sources)*
+            #(#stmts)*
+            Ok(())
+        }});
+    }
 
-        let mut name_inner = format_ident!("InnerLayout{counter}");
-        let mut inner = quote! {
-            struct #name_inner<S>(S);
+    // Nested Layout
 
-            impl<S> #TemplDisplay for #name_inner<S> where S: #TemplDisplay {
+    let mut reload = reload;
+    let mut layout = layout;
+    let mut counter = 0;
+
+    let mut name_inner = format_ident!("InnerLayout{counter}");
+    let mut inner = quote! {
+        struct #name_inner<S>(S);
+
+        impl<S> #TemplDisplay for #name_inner<S> where S: #TemplDisplay {
+            fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                #include_source
+                let layout_inner = &self.0;
+                #(#sources)*
+                #(#stmts)*
+                Ok(())
+            }
+        }
+    };
+
+    while let Some(LayoutInfo { source, is_root }) = layout.take() {
+        counter += 1;
+
+        let (source,path) = fs_read(source, !is_root)?;
+        let include_source = generate::include_str_source(path.as_deref());
+        let SynParser { layout: l1, root: stmts, reload: r1, statics, .. } = generate::template(&source, reload)?;
+        let sources = generate::sources(path.as_deref(), &r1, &statics);
+
+        let name = format_ident!("InnerLayout{counter}");
+        inner = quote! {
+            struct #name<S>(S);
+
+            impl<S> #TemplDisplay for #name<S> where S: #TemplDisplay {
                 fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                    #inner
+
                     #include_source
-                    let layout_inner = &self.0;
+                    let layout_inner = #name_inner(&self.0);
                     #(#sources)*
                     #(#stmts)*
                     Ok(())
@@ -172,85 +182,15 @@ fn template_layout(templ: LayoutInfo, reload: Reload) -> Result<TokenStream> {
             }
         };
 
-        while let Some(LayoutInfo { source, is_root }) = layout.take() {
-            counter += 1;
-
-            let (source,path) = fs_read(source, !is_root)?;
-            let include_source = generate::include_source(&path);
-            let SynParser { layout: l1, root: stmts, reload: r1, statics, .. } = generate::template(&source, reload)?;
-            let sources = generate::sources(&path, &r1, &statics);
-
-            let name = format_ident!("InnerLayout{counter}");
-            inner = quote! {
-                struct #name<S>(S);
-
-                impl<S> #TemplDisplay for #name<S> where S: #TemplDisplay {
-                    fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                        #inner
-
-                        #include_source
-                        let layout_inner = #name_inner(&self.0);
-                        #(#sources)*
-                        #(#stmts)*
-                        Ok(())
-                    }
-                }
-            };
-
-            name_inner = name;
-            layout = l1;
-            reload = r1;
-        }
-
-        Ok(quote! {{
-            #inner
-            #TemplDisplay::display(&#name_inner(self), writer)
-        }})
-    } else {
-        Ok(quote! {{
-            #include_source
-            let layout_inner = &*self;
-            #(#sources)*
-            #(#stmts)*
-            Ok(())
-        }})
-    }
-}
-
-fn find_template_attr(mut attrs: Vec<Attribute>) -> Result<Vec<MetaNameValue>> {
-    let index = attrs.iter().position(|attr|attr.meta.path().is_ident("template"));
-    let Some(attr) = index.map(|e|attrs.swap_remove(e)) else {
-        error!("`template` attribute missing")
-    };
-    let Meta::List(meta_list) = attr.meta else {
-        error!("expected `#[template(/* .. */)]`")
-    };
-
-    Ok(meta_list
-        .parse_args_with(Punctuated::<MetaNameValue,Token![,]>::parse_terminated)?
-        .into_iter()
-        .collect::<Vec<_>>())
-}
-
-/// return (source,path)
-fn find_source(attrs: &Vec<MetaNameValue>) -> Result<(String,Option<String>)> {
-    fn str_value(value: &Expr) -> Result<String> {
-        match value {
-            Expr::Lit(ExprLit { lit: Lit::Str(lit), .. }) => Ok(lit.value()),
-            _ => error!("expected string")
-        }
+        name_inner = name;
+        layout = l1;
+        reload = r1;
     }
 
-    for MetaNameValue { path, value, .. } in attrs {
-        match () {
-            _ if path.is_ident("path") => return fs_read(str_value(value)?, true),
-            _ if path.is_ident("root") => return fs_read(str_value(value)?, false),
-            _ if path.is_ident("source") => return Ok((str_value(value)?,None)),
-            _ => continue,
-        }
-    }
-
-    error!("require `path`, `root` or `source`")
+    Ok(quote! {{
+        #inner
+        #TemplDisplay::display(&#name_inner(self), writer)
+    }})
 }
 
 fn fs_read(path: String, is_template: bool) -> Result<(String, Option<String>)> {
@@ -266,40 +206,12 @@ fn fs_read(path: String, is_template: bool) -> Result<(String, Option<String>)> 
     }
 }
 
-fn find_reload(attrs: &Vec<MetaNameValue>) -> Result<Reload> {
-    for MetaNameValue { path, value, .. } in attrs {
-        if !path.is_ident("reload") {
-            continue;
-        }
-
-        // reload = debug
-        // reload = always
-        // reload = never
-        // reload = "not(cfg(test))"
-
-        match value {
-            Expr::Path(ExprPath { path, .. }) if path.is_ident("debug") => return Ok(Reload::Debug),
-            Expr::Path(ExprPath { path, .. }) if path.is_ident("always") => return Ok(Reload::Always),
-            Expr::Path(ExprPath { path, .. }) if path.is_ident("never") => return Ok(Reload::Never),
-            Expr::Lit(ExprLit { lit: Lit::Str(lit), .. }) =>
-                return syn::parse_str(&lit.value()).map(Reload::Expr),
-            _ => continue,
-        }
-    }
-
-    Ok(if cfg!(feature = "dev-reload") { Reload::Debug } else { Reload::Never })
-}
-
-enum AttrKind {
-    None,
-    Display(Ident),
-}
-
 mod generate {
     use super::*;
 
-    pub fn include_source(path: &Option<String>) -> Option<TokenStream> {
-        path.as_ref().map(|path|quote!{const _: &str = include_str!(#path);})
+    /// Generate `include_str!("")`
+    pub fn include_str_source(path: Option<&str>) -> Option<TokenStream> {
+        path.map(|path|quote!{const _: &str = include_str!(#path);})
     }
 
     pub fn template(source: &str, reload: Reload) -> Result<SynParser> {
@@ -309,7 +221,7 @@ mod generate {
         }
     }
 
-    pub fn sources(path: &Option<String>, reload: &Reload, statics: &[String]) -> [TokenStream;2] {
+    pub fn sources(path: Option<&str>, reload: &Reload, statics: &[String]) -> [TokenStream;2] {
         match (path.is_some(), reload.as_bool()) {
             (true,Ok(true)) => [
                 quote!{ let sources = ::std::fs::read_to_string(#path)?; },

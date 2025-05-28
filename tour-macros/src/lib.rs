@@ -3,8 +3,9 @@
 //! [1]: <https://docs.rs/tour>
 
 mod syntax;
-mod spec;
+mod shared;
 
+mod attribute;
 mod parser;
 mod template;
 
@@ -35,3 +36,22 @@ impl quote::ToTokens for TemplWrite {
     }
 }
 
+macro_rules! error {
+    (@ $s:expr, $($tt:tt)*) => {
+        return Err(Error::new($s, format!($($tt)*)))
+    };
+    (!$s:expr, $($tt:tt)*) => {
+        match $s { Some(ok) => ok, None => error!($($tt)*), }
+    };
+    (!$s:expr) => {
+        match $s { Ok(ok) => ok, Err(err) => error!("{err}"), }
+    };
+    ($s:expr, $($tt:tt)*) => {
+        error!(@ $s.span(), $($tt)*)
+    };
+    ($($tt:tt)*) => {
+        error!(@ proc_macro2::Span::call_site(), $($tt)*)
+    };
+}
+
+pub(crate) use error;

@@ -1,10 +1,11 @@
 //! [`ExprParser`] implementation via syn
 //!
 //! see [`SynParser`]
-use crate::{spec, syntax::*, TemplDisplay};
-use quote::{quote, ToTokens};
+use quote::{ToTokens, quote};
 use syn::*;
-use tour_core::{Delimiter, ParseError, Visitor, Result};
+use tour_core::{Delimiter, ParseError, Result, Visitor};
+
+use crate::{TemplDisplay, attribute::Reload, shared, syntax::*};
 
 macro_rules! error {
     ($($tt:tt)*) => {
@@ -40,24 +41,6 @@ impl Scope {
             Scope::For { stmts, .. } => stmts,
             Scope::If { else_branch: Some(branch), .. } => branch.1.stack(),
             Scope::If { stmts, .. } => stmts,
-        }
-    }
-}
-
-pub enum Reload {
-    Debug,
-    Always,
-    Never,
-    Expr(Expr),
-}
-
-impl Reload {
-    pub fn as_bool(&self) -> Result<bool,&Expr> {
-        match self {
-            Reload::Debug => Ok(cfg!(debug_assertions)),
-            Reload::Always => Ok(true),
-            Reload::Never => Ok(false),
-            Reload::Expr(expr) => Err(expr),
         }
     }
 }
@@ -130,8 +113,8 @@ impl Visitor<'_> for SynParser {
                 });
             }
             ExprTempl::Expr(expr) => {
-                let display = spec::display(delim, expr);
-                let writer = spec::writer(delim);
+                let display = shared::display(delim, expr);
+                let writer = shared::writer(delim);
                 self.push_stack(syn::parse_quote! {
                     #TemplDisplay::display(#display, #writer)?;
                 });
@@ -247,11 +230,6 @@ impl Visitor<'_> for SynParser {
             error!("unclosed `{scope}` scope")
         }
 
-        // Ok(SynOutput {
-        //     layout: self.layout,
-        //     stmts: self.root,
-        //     reload: self.reload,
-        // })
         Ok(self)
     }
 }
