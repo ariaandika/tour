@@ -1,11 +1,10 @@
 //! [`Visitor`] implementation via syn
-#![allow(warnings)]
-use quote::quote;
+use std::collections::HashMap;
 use syn::*;
 use tour_core::{Delimiter, ParseError, Result, Visitor};
 
 use crate::{
-    shared::{self, SourceTempl, TemplDisplay},
+    shared::SourceTempl,
     syntax::{ExprTempl, *},
 };
 
@@ -18,9 +17,16 @@ macro_rules! error {
 // NOTE: this module should not do any codegen
 // only collect all tokens in Visitor implementation
 
+/// Contains a single file template information.
+pub struct Template {
+    pub layout: Option<SourceTempl>,
+    pub blocks: HashMap<Ident, BlockContent>,
+    pub stmts: Vec<StmtTempl>,
+}
+
 pub struct BlockContent {
-    templ: BlockTempl,
-    stmts: Vec<StmtTempl>,
+    pub templ: BlockTempl,
+    pub stmts: Vec<StmtTempl>,
 }
 
 pub enum StmtTempl {
@@ -68,8 +74,8 @@ impl Scope {
 }
 
 pub struct SynVisitor {
-    layout_source: Option<SourceTempl>,
-    blocks: Vec<BlockContent>,
+    layout: Option<SourceTempl>,
+    blocks: HashMap<Ident, BlockContent>,
     root: Vec<StmtTempl>,
 
     /// currently open scopes
@@ -77,6 +83,23 @@ pub struct SynVisitor {
 }
 
 impl SynVisitor {
+    pub fn new() -> Self {
+        Self {
+            layout: None,
+            blocks: <_>::default(),
+            root: vec![],
+            scopes: vec![],
+        }
+    }
+
+    pub fn finish(self) -> Template {
+        Template {
+            layout: self.layout,
+            blocks: self.blocks,
+            stmts: self.root,
+        }
+    }
+
     fn stack_mut(&mut self) -> &mut Vec<StmtTempl> {
         match self.scopes.last_mut() {
             Some(ok) => ok.stack(),
@@ -102,7 +125,7 @@ impl Visitor<'_> for SynVisitor {
 
             ExprTempl::Layout(LayoutTempl { root_token, source, .. }) |
             ExprTempl::Extends(ExtendsTempl { root_token, source, .. }) => {
-                let dupl = self.layout_source.replace(if root_token.is_some() {
+                let dupl = self.layout.replace(if root_token.is_some() {
                     SourceTempl::Root(source.value())
                 } else {
                     SourceTempl::Path(source.value())
@@ -202,7 +225,7 @@ impl Visitor<'_> for SynVisitor {
 
                 let name = templ.name.clone();
 
-                self.blocks.push(BlockContent { templ, stmts });
+                self.blocks.insert(name.clone(), BlockContent { templ, stmts });
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(
                     RenderTempl {
                         render_token: <_>::default(),
