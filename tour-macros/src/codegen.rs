@@ -64,7 +64,7 @@ impl Visitor {
                 },
                 Scalar::Yield => {
                     self.tokens.extend(quote! {
-                        #TemplDisplay::display(&layout_inner, &mut *writer)?;
+                        #TemplDisplay::display(&self.0, &mut *writer)?;
                     });
                 },
                 Scalar::Render(RenderTempl { name, .. }) => {

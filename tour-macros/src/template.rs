@@ -17,7 +17,6 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let attr = AttrData::from_attr(&mut attrs)?;
     let path = attr.resolve_path();
 
-
     // destructor, for convenient, named fields only
     let destructor = match &data {
         Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
@@ -63,12 +62,13 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let layout = match layout {
         Some(layout) => {
             let layout = template_layout(layout, attr)?;
-            Some(quote! {
-                fn render_layout_into(&self, writer: &mut impl #TemplWrite)
-                    -> ::tour::Result<()> #layout
-            })
+            quote! {
+                fn render_layout_into(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                    #layout
+                }
+            }
         },
-        None => None,
+        None => quote! {  },
     };
 
     let (g1,g2,g3) = generics.split_for_impl();
@@ -77,9 +77,10 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         #[automatically_derived]
         impl #g1 ::tour::Template for #ident #g2 #g3 {
             fn render_into(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                #include_source
                 #destructor
                 #displays
+
+                #include_source
                 #(#sources)*
                 #body
                 Ok(())
@@ -97,78 +98,69 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     })
 }
 
-fn template_layout(first_templ_source: SourceTempl, attr: AttrData) -> Result<TokenStream> {
-    let path = first_templ_source.resolve_path();
-    let source = first_templ_source.resolve_source()?;
-
-    let include_source = generate::include_str_source(path.as_deref());
-    let (Template { layout, statics, .. }, body) = generate::template(&source, &attr)?;
-    let sources = generate::sources(path.as_deref(), &attr.reload, &statics);
-
-    if layout.is_none() {
-        return Ok(quote! {{
-            #include_source
-            let layout_inner = &*self;
-            #(#sources)*
-            #body
-            Ok(())
-        }});
+fn template_layout(source: SourceTempl, attr: AttrData) -> Result<TokenStream> {
+    struct Visitor<'a> {
+        names: &'a mut Vec<Ident>,
+        counter: usize,
+        attr: AttrData,
     }
 
-    // Nested Layout
-
-    let mut layout = layout;
-    let mut counter = 0;
-
-    let mut name_inner = format_ident!("InnerLayout{counter}");
-    let mut inner = quote! {
-        struct #name_inner<S>(S);
-
-        impl<S> #TemplDisplay for #name_inner<S> where S: #TemplDisplay {
-            fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                #include_source
-                let layout_inner = &self.0;
-                #(#sources)*
-                #body
-                Ok(())
-            }
+    impl Visitor<'_> {
+        fn generate_name(&mut self, path: Option<&str>) -> Ident {
+            self.counter += 1;
+            let suffix = std::path::Path::new(path.unwrap_or("Inline"))
+                .file_stem()
+                .and_then(|e|e.to_str())
+                .unwrap_or("OsFile");
+            let name = format_ident!("L{}{suffix}",self.counter);
+            self.names.push(name.clone());
+            name
         }
-    };
 
-    while let Some(layout_source) = layout.take() {
-        counter += 1;
-        let path = layout_source.resolve_path();
-        let source = layout_source.resolve_source()?;
+        fn visit_layout(mut self, source: SourceTempl) -> Result<TokenStream> {
+            let path = source.resolve_path();
+            let source = source.resolve_source()?;
 
-        let include_source = generate::include_str_source(path.as_deref());
-        let (Template { layout: l1, statics, .. }, body) = generate::template(&source, &attr)?;
-        let sources = generate::sources(path.as_deref(), &attr.reload, &statics);
+            let (Template { layout, statics, .. }, body) = generate::template(&source, &self.attr)?;
+            let include_source = generate::include_str_source(path.as_deref());
+            let sources = generate::sources(path.as_deref(), &self.attr.reload, &statics);
 
-        let name = format_ident!("InnerLayout{counter}");
-        inner = quote! {
-            struct #name<S>(S);
+            let name = self.generate_name(path.as_deref());
+            let nested_layout = match layout {
+                Some(source) => self.visit_layout(source)?,
+                None => quote! { },
+            };
 
-            impl<S> #TemplDisplay for #name<S> where S: #TemplDisplay {
-                fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                    #inner
+            Ok(quote! {
+                #nested_layout
 
-                    #include_source
-                    let layout_inner = #name_inner(&self.0);
-                    #(#sources)*
-                    #body
-                    Ok(())
+                struct #name<S>(S);
+
+                impl<S> #TemplDisplay for #name<S> where S: #TemplDisplay {
+                    fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                        #include_source
+                        #(#sources)*
+                        #body
+                        Ok(())
+                    }
                 }
-            }
-        };
-
-        name_inner = name;
-        layout = l1;
+            })
+        }
     }
 
-    Ok(quote! {{
+    let mut names = vec![];
+
+    let visitor = Visitor { names: &mut names, counter: 0, attr };
+    let inner = visitor.visit_layout(source)?;
+
+    let fold = names.into_iter().fold(syn::parse_quote!(self), |acc,n| -> Expr {
+        syn::parse_quote!(#n(#acc))
+    });
+
+    Ok(quote! {
         #inner
-        #TemplDisplay::display(&#name_inner(self), writer)
-    }})
+        #TemplDisplay::display(&#fold, writer)
+    })
 }
 
 mod generate {
@@ -176,16 +168,10 @@ mod generate {
     //!
     //! it is splitted because root template and layout template have different step
     //!
-    //! 1. include_str_source
-    //! 2. template
-    //! 3. sources
-
+    //! 1. template, template body
+    //! 2. include_str_source, `include_str!()` to trigger recompile on template change
+    //! 3. sources, static contents as array to allow runtime reload
     use super::*;
-
-    /// Generate `include_str!("")`
-    pub fn include_str_source(path: Option<&str>) -> Option<TokenStream> {
-        path.map(|path|quote!{const _: &str = include_str!(#path);})
-    }
 
     pub fn template(source: &str, attr: &AttrData) -> Result<(Template,TokenStream)> {
         let templ = match Parser::new(source, SynVisitor::new()).parse() {
@@ -194,6 +180,10 @@ mod generate {
         };
         let body = codegen::generate(attr, &templ)?;
         Ok((templ,body))
+    }
+
+    pub fn include_str_source(path: Option<&str>) -> Option<TokenStream> {
+        path.map(|path|quote!{const _: &str = include_str!(#path);})
     }
 
     pub fn sources(path: Option<&str>, reload: &Reload, statics: &[String]) -> [TokenStream;2] {
