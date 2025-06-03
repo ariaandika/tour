@@ -8,6 +8,8 @@ use crate::shared::{Reload, SourceTempl, error};
 pub struct AttrData {
     /// `#[path = ".." | root = ".." | source = ".."]`
     pub source: SourceTempl,
+    /// `#[block = Body]`
+    pub block: Option<Ident>,
     /// `#[path = "debug" | "always" | "never" | <Expr>]`
     pub reload: Reload,
 }
@@ -41,6 +43,7 @@ impl AttrData {
             input.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
 
         let mut source = None;
+        let mut block = None;
         let mut reload = None;
 
         for input in input {
@@ -59,6 +62,17 @@ impl AttrData {
 
                 if dupl.is_some() {
                     error!("duplicate key `reload`")
+                }
+
+                continue;
+            }
+
+            if key == "block" {
+                let name = ident_value(&input.value)?;
+                let dupl = block.replace(name);
+
+                if dupl.is_some() {
+                    error!("duplicate key `block`")
                 }
 
                 continue;
@@ -87,7 +101,7 @@ impl AttrData {
             Reload::Never
         });
 
-        Ok(Self { source, reload })
+        Ok(Self { source, block, reload })
     }
 }
 
@@ -147,6 +161,13 @@ fn str_value(value: &Expr) -> Result<String> {
     match value {
         Expr::Lit(ExprLit { lit: Lit::Str(lit), .. }) => Ok(lit.value()),
         _ => error!("expected string")
+    }
+}
+
+fn ident_value(value: &Expr) -> Result<Ident> {
+    match value {
+        Expr::Path(ExprPath { path, .. }) => path.require_ident().cloned(),
+        _ => error!("expected identifier")
     }
 }
 

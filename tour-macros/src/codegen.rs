@@ -11,6 +11,15 @@ use crate::{
 };
 
 pub fn generate(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
+    let stmts = if let Some(block) = attr.block.as_ref() {
+        let Some(BlockContent { stmts, .. }) = templ.blocks.get(block) else {
+            error!("cannot find block `{block}`")
+        };
+        stmts
+    } else {
+        &templ.stmts
+    };
+
     // blocks cannot be in `Visitor`, because its possible to `visit` statements inside
     // `blocks` which take mutable reference of the whole `Visitor`.
     let shared = Shared {
@@ -19,7 +28,7 @@ pub fn generate(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
     };
 
     let mut visitor = Visitor::default();
-    visitor.visit_stmts(&templ.stmts, &shared)?;
+    visitor.visit_stmts(stmts, &shared)?;
 
     Ok(visitor.tokens)
 }
@@ -68,7 +77,7 @@ impl Visitor {
                 },
                 Scalar::Render(RenderTempl { name, .. }) => {
                     let Some(block) = shared.blocks.get(name) else {
-                        error!("block `{name}` not found")
+                        error!("cannot find block `{name}`")
                     };
                     self.visit_stmts(&block.stmts, shared)?;
                 },
