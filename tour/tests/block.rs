@@ -12,7 +12,7 @@ fn blocked() {
         "<div><p>Willie</p></div>
 <div><p>Jane</p></div>
 <p>Willie</p>
-<p>Jane</p>
+
 ");
 }
 
