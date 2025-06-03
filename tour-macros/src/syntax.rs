@@ -87,21 +87,21 @@ pub struct RenderTempl {
 /// `{{ if admin }}`
 pub struct IfTempl {
     pub if_token: Token![if],
-    pub cond: Expr,
+    pub cond: Box<Expr>,
 }
 
 /// `{{ else if superuser }}`
 pub struct ElseTempl {
     pub else_token: Token![else],
-    pub elif_branch: Option<(Token![if],Expr)>
+    pub elif_branch: Option<(Token![if],Box<Expr>)>
 }
 
 /// `{{ for task in tasks }}`
 pub struct ForTempl {
     pub for_token: Token![for],
-    pub pat: Pat,
+    pub pat: Box<Pat>,
     pub in_token: Token![in],
-    pub expr: Expr,
+    pub expr: Box<Expr>,
 }
 
 /// `{{ use crate::TimeDisplay }}`
@@ -173,7 +173,8 @@ impl Parse for ForTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             for_token: input.parse()?,
-            pat: input.call(Pat::parse_single)?,
+            // this Pat function that is used by syn parse
+            pat: Box::new(Pat::parse_multi_with_leading_vert(input)?),
             in_token: input.parse()?,
             expr: input.parse()?,
         })
