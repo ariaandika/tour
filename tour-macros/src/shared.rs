@@ -84,6 +84,15 @@ pub fn writer(delim: Delimiter) -> TokenStream {
     }
 }
 
+/// Everything will return `Result<T, syn::Error>`
+///
+/// `error!("{}",error)`, standard `format!`
+///
+/// `error!(attr, "{}", error)`, standard `format!` with `attr`s span.
+///
+/// `error!(!option, "{}", error)`, unwrap option with error as standard `format!`.
+///
+/// `error!(!result)`, unwrap result.
 macro_rules! error {
     (@ $s:expr, $($tt:tt)*) => {
         return Err(syn::Error::new($s, format!($($tt)*)))
@@ -95,7 +104,7 @@ macro_rules! error {
         match $s { Ok(ok) => ok, Err(err) => crate::shared::error!("{err}"), }
     };
     ($s:expr, $($tt:tt)*) => {
-        error!(@ $s.span(), $($tt)*)
+        crate::shared::error!(@ $s.span(), $($tt)*)
     };
     ($($tt:tt)*) => {
         crate::shared::error!(@ proc_macro2::Span::call_site(), $($tt)*)
