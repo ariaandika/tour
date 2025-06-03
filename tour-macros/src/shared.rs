@@ -65,6 +65,18 @@ impl SourceTempl {
     }
 }
 
+// TODO: remove the owning `display` below
+
+pub fn display_ref(delim: Delimiter, expr: &syn::Expr) -> TokenStream {
+    use Delimiter::*;
+
+    match delim {
+        Quest => quote! {&::tour::Debug(&#expr)},
+        Percent => quote! {&::tour::Display(&#expr)},
+        Brace | Bang | Hash => quote! {&#expr},
+    }
+}
+
 pub fn display(delim: Delimiter, expr: syn::Expr) -> TokenStream {
     use Delimiter::*;
 

@@ -5,17 +5,17 @@ use syn::*;
 
 use crate::{
     attribute::AttrData,
-    shared::{TemplDisplay, error},
+    shared::{self, error, TemplDisplay},
     syntax::RenderTempl,
     visitor::{BlockContent, Scalar, Scope, StmtTempl, Template},
 };
 
-pub fn generate(attr: AttrData, templ: Template) -> Result<TokenStream> {
+pub fn generate(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
     // blocks cannot be in `Visitor`, because its possible to `visit` statements inside
     // `blocks` which take mutable reference of the whole `Visitor`.
     let shared = Shared {
         attr,
-        blocks: templ.blocks,
+        blocks: &templ.blocks,
     };
 
     let mut visitor = Visitor::default();
@@ -24,9 +24,9 @@ pub fn generate(attr: AttrData, templ: Template) -> Result<TokenStream> {
     Ok(visitor.tokens)
 }
 
-struct Shared {
-    attr: AttrData,
-    blocks: HashMap<Ident, BlockContent>,
+struct Shared<'a> {
+    attr: &'a AttrData,
+    blocks: &'a HashMap<Ident, BlockContent>,
 }
 
 #[derive(Default)]
@@ -73,8 +73,12 @@ impl Visitor {
                     };
                     self.visit_stmts(&block.stmts, shared)?;
                 },
-                Scalar::Expr(expr) => {
-                    expr.to_tokens(&mut self.tokens);
+                Scalar::Expr(expr, delim) => {
+                    let display = shared::display_ref(*delim, expr);
+                    let writer = shared::writer(*delim);
+                    self.tokens.extend(quote! {
+                        #TemplDisplay::display(#display, #writer)?;
+                    });
                 },
                 Scalar::Use(templ) => {
                     templ.use_token.to_tokens(&mut self.tokens);
