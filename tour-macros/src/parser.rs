@@ -213,9 +213,9 @@ impl Visitor<'_> for SynParser {
                 self.push_stack(syn::parse_quote!(#for_token #pat #in_token #for_expr { #(#stmts)* }));
             }
 
-            ExprTempl::Use(UseTempl { use_token, path }) => {
+            ExprTempl::Use(UseTempl { use_token, leading_colon, tree, .. }) => {
                 self.push_stack(syn::parse_quote! {
-                    #use_token #path;
+                    #use_token #leading_colon #tree;
                 });
             }
 

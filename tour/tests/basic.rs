@@ -77,3 +77,13 @@ fn iteration_2_branch() {
     assert_eq!(&it[..],"<div>None</div>");
 }
 
+#[test]
+fn using() {
+    #[derive(Template)]
+    #[template(source = "{{ use std::io::{Read, Write, prelude::*} }}")]
+    struct Using;
+
+    let u = Using.render().unwrap();
+    assert_eq!(&u[..],"");
+}
+

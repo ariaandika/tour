@@ -107,7 +107,10 @@ pub struct ForTempl {
 /// `{{ use crate::TimeDisplay }}`
 pub struct UseTempl {
     pub use_token: Token![use],
-    pub path: Path,
+    pub leading_colon: Option<Token![::]>,
+    pub tree: UseTree,
+    #[allow(unused)]
+    pub semi_token: Option<Token![;]>,
 }
 
 impl Parse for LayoutTempl {
@@ -185,7 +188,9 @@ impl Parse for UseTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             use_token: input.parse()?,
-            path: input.parse()?,
+            leading_colon: input.parse()?,
+            tree: input.parse()?,
+            semi_token: input.parse()?,
         })
     }
 }

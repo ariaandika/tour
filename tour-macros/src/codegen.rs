@@ -82,7 +82,7 @@ impl Visitor {
                 },
                 Scalar::Use(templ) => {
                     templ.use_token.to_tokens(&mut self.tokens);
-                    templ.path.to_tokens(&mut self.tokens);
+                    templ.tree.to_tokens(&mut self.tokens);
                     quote::__private::push_semi(&mut self.tokens);
                 },
             },
