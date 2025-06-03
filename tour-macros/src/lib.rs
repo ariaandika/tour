@@ -7,6 +7,8 @@ mod shared;
 
 mod attribute;
 mod visitor;
+
+mod codegen;
 mod parser;
 mod template;
 
