@@ -1,5 +1,85 @@
 use tour::Template;
 
+struct MyDisplay;
+
+impl tour::TemplDisplay for MyDisplay {
+    fn display(&self, f: &mut impl tour::TemplWrite) -> tour::Result<()> {
+        f.write_str("kernel")
+    }
+}
+
+impl std::fmt::Display for MyDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("beans")
+    }
+}
+
+impl std::fmt::Debug for MyDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ultra beans")
+    }
+}
+
+#[test]
+fn render() {
+    #[derive(Template)]
+    #[template(source = "{{ input }}")]
+    struct Displayed {
+        input: MyDisplay,
+    }
+
+    let esc = Displayed { input: MyDisplay }.render().unwrap();
+    assert_eq!(&esc[..],"kernel");
+}
+
+#[test]
+fn render_std_display() {
+    #[derive(Template)]
+    #[template(source = "{% input %}")]
+    struct Displayed {
+        input: MyDisplay,
+    }
+
+    let esc = Displayed { input: MyDisplay }.render().unwrap();
+    assert_eq!(&esc[..],"beans");
+}
+
+#[test]
+fn render_std_debug() {
+    #[derive(Template)]
+    #[template(source = "{? input ?}")]
+    struct Displayed {
+        input: MyDisplay,
+    }
+
+    let esc = Displayed { input: MyDisplay }.render().unwrap();
+    assert_eq!(&esc[..],"ultra beans");
+}
+
+#[test]
+fn escape() {
+    #[derive(Template)]
+    #[template(source = "{{ input }}")]
+    struct Escape {
+        input: &'static str,
+    }
+
+    let esc = Escape { input: "<script></script>" }.render().unwrap();
+    assert_eq!(&esc[..],"&ltscript&gt&lt/script&gt");
+}
+
+#[test]
+fn escape_opt_out() {
+    #[derive(Template)]
+    #[template(source = "{! input !}")]
+    struct EscapeOptOut {
+        input: &'static str,
+    }
+
+    let esc = EscapeOptOut { input: "<script></script>" }.render().unwrap();
+    assert_eq!(&esc[..],"<script></script>");
+}
+
 #[test]
 fn conditional() {
     #[derive(Template)]
