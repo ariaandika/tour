@@ -12,6 +12,12 @@ pub enum ExprTempl {
     Extends(ExtendsTempl),
     /// `{{ yield }}`
     Yield(Token![yield]),
+    /// `{{ block Body }}`
+    Block(BlockTempl),
+    /// `{{ endblock }}`
+    Endblock(kw::endblock),
+    /// `{{ render Body }}`
+    Render(RenderTempl),
     /// `{{ username.get(1..6) }}`
     Expr(Expr),
     /// `{{ if admin }}`
@@ -34,6 +40,9 @@ impl Parse for ExprTempl {
             _ if input.peek(kw::layout) => input.parse().map(Self::Layout),
             _ if input.peek(kw::extends) => input.parse().map(Self::Extends),
             _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
+            _ if input.peek(kw::block) => input.parse().map(Self::Block),
+            _ if input.peek(kw::endblock) => input.parse().map(Self::Endblock),
+            _ if input.peek(kw::render) => input.parse().map(Self::Render),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
             _ if input.peek(Token![else]) => input.parse().map(Self::Else),
             _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
@@ -59,6 +68,20 @@ pub struct ExtendsTempl {
     pub extends_token: kw::extends,
     pub root_token: Option<kw::root>,
     pub source: LitStr,
+}
+
+/// `{{ block Body }}`
+pub struct BlockTempl {
+    #[allow(dead_code)]
+    pub block_token: kw::block,
+    pub name: Ident,
+}
+
+/// `{{ render Body }}`
+pub struct RenderTempl {
+    #[allow(dead_code)]
+    pub render_token: kw::render,
+    pub name: Ident,
 }
 
 /// `{{ if admin }}`
@@ -103,6 +126,24 @@ impl Parse for ExtendsTempl {
             extends_token: input.parse()?,
             root_token: input.parse()?,
             source: input.parse()?,
+        })
+    }
+}
+
+impl Parse for BlockTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            block_token: input.parse()?,
+            name: input.parse()?,
+        })
+    }
+}
+
+impl Parse for RenderTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            render_token: input.parse()?,
+            name: input.parse()?,
         })
     }
 }
@@ -152,6 +193,9 @@ mod kw {
     syn::custom_keyword!(layout);
     syn::custom_keyword!(extends);
     syn::custom_keyword!(root);
+    syn::custom_keyword!(block);
+    syn::custom_keyword!(render);
+    syn::custom_keyword!(endblock);
     syn::custom_keyword!(endif);
     syn::custom_keyword!(endfor);
 }
