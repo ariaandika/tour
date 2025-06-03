@@ -41,6 +41,7 @@ impl Parse for ExprTempl {
             _ if input.peek(kw::extends) => input.parse().map(Self::Extends),
             _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
             _ if input.peek(kw::block) => input.parse().map(Self::Block),
+            _ if input.peek(Token![static]) && input.peek2(kw::block) => input.parse().map(Self::Block),
             _ if input.peek(kw::endblock) => input.parse().map(Self::Endblock),
             _ if input.peek(kw::render) => input.parse().map(Self::Render),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
@@ -72,7 +73,8 @@ pub struct ExtendsTempl {
 
 /// `{{ block Body }}`
 pub struct BlockTempl {
-    #[allow(dead_code)]
+    pub static_token: Option<Token![static]>,
+    #[allow(unused)]
     pub block_token: kw::block,
     pub name: Ident,
 }
@@ -136,6 +138,7 @@ impl Parse for ExtendsTempl {
 impl Parse for BlockTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
+            static_token: input.parse()?,
             block_token: input.parse()?,
             name: input.parse()?,
         })

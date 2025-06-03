@@ -232,13 +232,16 @@ impl Visitor<'_> for SynVisitor {
 
                 let name = templ.name.clone();
 
-                self.blocks.insert(name.clone(), BlockContent { templ, stmts });
-                self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(
-                    RenderTempl {
-                        render_token: <_>::default(),
-                        name,
-                    },
-                )));
+                if templ.static_token.is_none() {
+                    self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(
+                        RenderTempl {
+                            render_token: <_>::default(),
+                            name: name.clone(),
+                        },
+                    )));
+                }
+
+                self.blocks.insert(name, BlockContent { templ, stmts });
             },
             ExprTempl::EndIf(_endif) => {
                 let if_scope = match self.scopes.pop() {
