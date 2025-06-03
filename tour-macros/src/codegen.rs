@@ -82,7 +82,7 @@ impl Visitor {
                     self.visit_stmts(&block.stmts, shared)?;
                 },
                 Scalar::Expr(expr, delim) => {
-                    let display = shared::display_ref(*delim, expr);
+                    let display = shared::display(*delim, expr);
                     let writer = shared::writer(*delim);
                     self.tokens.extend(quote! {
                         #TemplDisplay::display(#display, #writer)?;
@@ -90,6 +90,7 @@ impl Visitor {
                 },
                 Scalar::Use(templ) => {
                     templ.use_token.to_tokens(&mut self.tokens);
+                    templ.leading_colon.to_tokens(&mut self.tokens);
                     templ.tree.to_tokens(&mut self.tokens);
                     quote::__private::push_semi(&mut self.tokens);
                 },

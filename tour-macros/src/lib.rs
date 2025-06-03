@@ -9,7 +9,6 @@ mod attribute;
 mod visitor;
 
 mod codegen;
-mod parser;
 mod template;
 
 /// Derive macro for `Template` trait
