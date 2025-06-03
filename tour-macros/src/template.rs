@@ -209,6 +209,7 @@ mod generate {
                     };
                 }
             ],
+            (false, _) if statics.is_empty() => <_>::default(),
             (false, _) => [quote!{ let sources = [#(#statics),*]; },<_>::default()],
         }
     }
