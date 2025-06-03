@@ -21,6 +21,7 @@ macro_rules! error {
 pub struct Template {
     pub layout: Option<SourceTempl>,
     pub blocks: HashMap<Ident, BlockContent>,
+    pub statics: Vec<String>,
     pub stmts: Vec<StmtTempl>,
 }
 
@@ -36,7 +37,7 @@ pub enum StmtTempl {
 
 pub enum Scalar {
     Static(String),
-    Expr(Expr),
+    Expr(Expr,Delimiter),
     Render(RenderTempl),
     Use(UseTempl),
     Yield,
@@ -76,6 +77,7 @@ impl Scope {
 pub struct SynVisitor {
     layout: Option<SourceTempl>,
     blocks: HashMap<Ident, BlockContent>,
+    statics: Vec<String>,
     root: Vec<StmtTempl>,
 
     /// currently open scopes
@@ -87,6 +89,7 @@ impl SynVisitor {
         Self {
             layout: None,
             blocks: <_>::default(),
+            statics: vec![],
             root: vec![],
             scopes: vec![],
         }
@@ -96,6 +99,7 @@ impl SynVisitor {
         Template {
             layout: self.layout,
             blocks: self.blocks,
+            statics: self.statics,
             stmts: self.root,
         }
     }
@@ -110,6 +114,7 @@ impl SynVisitor {
 
 impl Visitor<'_> for SynVisitor {
     fn visit_static(&mut self, source: &str) -> Result<()> {
+        self.statics.push(source.to_owned());
         self.stack_mut().push(StmtTempl::Scalar(Scalar::Static(source.to_owned())));
         Ok(())
     }
@@ -145,7 +150,7 @@ impl Visitor<'_> for SynVisitor {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(templ)));
             },
             ExprTempl::Expr(expr) => {
-                self.stack_mut().push(StmtTempl::Scalar(Scalar::Expr(expr)));
+                self.stack_mut().push(StmtTempl::Scalar(Scalar::Expr(expr,delim)));
             },
             ExprTempl::Use(templ) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Use(templ)));
