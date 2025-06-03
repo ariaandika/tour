@@ -37,7 +37,7 @@ pub enum StmtTempl {
 }
 
 pub enum Scalar {
-    Static(String),
+    Static(String,Index),
     Expr(Expr,Delimiter),
     Render(RenderTempl),
     Use(UseTempl),
@@ -115,8 +115,9 @@ impl SynVisitor {
 
 impl Visitor<'_> for SynVisitor {
     fn visit_static(&mut self, source: &str) -> Result<()> {
+        let idx = Index::from(self.statics.len());
+        self.stack_mut().push(StmtTempl::Scalar(Scalar::Static(source.to_owned(),idx)));
         self.statics.push(source.to_owned());
-        self.stack_mut().push(StmtTempl::Scalar(Scalar::Static(source.to_owned())));
         Ok(())
     }
 
