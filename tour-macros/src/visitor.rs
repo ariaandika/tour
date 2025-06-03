@@ -26,6 +26,7 @@ pub struct Template {
 }
 
 pub struct BlockContent {
+    #[allow(unused)]
     pub templ: BlockTempl,
     pub stmts: Vec<StmtTempl>,
 }
