@@ -218,6 +218,8 @@ impl Visitor<'_> for SynParser {
                     #use_token #path;
                 });
             }
+
+            _ => todo!(),
         }
 
         Ok(())

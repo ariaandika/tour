@@ -6,6 +6,7 @@ mod syntax;
 mod shared;
 
 mod attribute;
+mod visitor;
 mod parser;
 mod template;
 
