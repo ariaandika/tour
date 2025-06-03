@@ -9,6 +9,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Error {
     Parse(ParseError),
     Io(io::Error),
+    NoBlock,
 }
 
 impl Error {
@@ -17,17 +18,19 @@ impl Error {
     /// [`ParseError`] will become [`io::ErrorKind::InvalidData`].
     pub fn into_io(self) -> io::Error {
         match self {
-            Error::Parse(err) => io::Error::new(io::ErrorKind::InvalidData, err),
-            Error::Io(error) => error,
+            Self::Parse(err) => io::Error::new(io::ErrorKind::InvalidData, err),
+            Self::Io(error) => error,
+            Self::NoBlock => io::Error::new(io::ErrorKind::NotFound, "no such block"),
         }
     }
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Error::Parse(error) => error.fmt(f),
-            Error::Io(error) => error.fmt(f),
+            Self::Parse(error) => error.fmt(f),
+            Self::Io(error) => error.fmt(f),
+            Self::NoBlock => f.write_str("no such block")
         }
     }
 }

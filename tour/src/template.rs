@@ -11,6 +11,10 @@ pub trait Template {
         self.render_into(render)
     }
 
+    fn render_block_into(&self, _block: &str, _render: &mut impl TemplWrite) -> Result<()> {
+        Err(crate::Error::NoBlock)
+    }
+
     fn render(&self) -> Result<String> {
         let mut buffer = String::with_capacity(128);
         self.render_into(&mut buffer)?;
@@ -20,6 +24,12 @@ pub trait Template {
     fn render_layout(&self) -> Result<String> {
         let mut buffer = String::with_capacity(128);
         self.render_layout_into(&mut buffer)?;
+        Ok(buffer)
+    }
+
+    fn render_block(&self, block: &str) -> Result<String> {
+        let mut buffer = String::with_capacity(128);
+        self.render_block_into(block, &mut buffer)?;
         Ok(buffer)
     }
 }
