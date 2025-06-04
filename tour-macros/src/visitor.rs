@@ -4,6 +4,7 @@ use syn::*;
 use tour_core::{Delimiter, ParseError, Result, Visitor};
 
 use crate::{
+    attribute::AttrData,
     shared::SourceTempl,
     syntax::{ExprTempl, *},
 };
@@ -23,6 +24,22 @@ pub struct Template {
     pub blocks: HashMap<Ident, BlockContent>,
     pub statics: Vec<String>,
     pub stmts: Vec<StmtTempl>,
+}
+
+impl Template {
+    pub fn resolve_stmts(&self, attr: &AttrData) -> syn::Result<&[StmtTempl]> {
+        match attr.block.as_ref() {
+            Some(block) => self.get_stmts(block),
+            None => Ok(&self.stmts),
+        }
+    }
+
+    pub fn get_stmts(&self, block: &Ident) -> syn::Result<&[StmtTempl]> {
+        self.blocks
+            .get(block)
+            .map(|e| e.stmts.as_slice())
+            .ok_or_else(|| Error::new(block.span(), format!("cannot find block `{block}`")))
+    }
 }
 
 pub struct BlockContent {

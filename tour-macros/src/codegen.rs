@@ -1,41 +1,29 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use std::collections::HashMap;
 use syn::*;
 
 use crate::{
     attribute::AttrData,
-    shared::{self, error, TemplDisplay},
+    shared::{self, TemplDisplay},
     syntax::RenderTempl,
-    visitor::{BlockContent, Scalar, Scope, StmtTempl, Template},
+    visitor::{Scalar, Scope, StmtTempl, Template},
 };
 
 pub fn generate(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
-    let stmts = if let Some(block) = attr.block.as_ref() {
-        let Some(BlockContent { stmts, .. }) = templ.blocks.get(block) else {
-            error!("cannot find block `{block}`")
-        };
-        stmts
-    } else {
-        &templ.stmts
-    };
-
-    // blocks cannot be in `Visitor`, because its possible to `visit` statements inside
-    // `blocks` which take mutable reference of the whole `Visitor`.
     let shared = Shared {
         attr,
-        blocks: &templ.blocks,
+        templ,
     };
 
     let mut visitor = Visitor::default();
-    visitor.visit_stmts(stmts, &shared)?;
+    visitor.visit_stmts(templ.resolve_stmts(attr)?, &shared)?;
 
     Ok(visitor.tokens)
 }
 
 struct Shared<'a> {
     attr: &'a AttrData,
-    blocks: &'a HashMap<Ident, BlockContent>,
+    templ: &'a Template,
 }
 
 #[derive(Default)]
@@ -76,10 +64,7 @@ impl Visitor {
                     });
                 },
                 Scalar::Render(RenderTempl { name, .. }) => {
-                    let Some(block) = shared.blocks.get(name) else {
-                        error!("cannot find block `{name}`")
-                    };
-                    self.visit_stmts(&block.stmts, shared)?;
+                    self.visit_stmts(shared.templ.get_stmts(name)?, shared)?
                 },
                 Scalar::Expr(expr, delim) => {
                     let display = shared::display(*delim, expr);

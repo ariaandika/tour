@@ -1,33 +1,19 @@
-use std::collections::HashMap;
 use syn::*;
 
 use crate::{
     attribute::AttrData,
-    shared::error,
     syntax::RenderTempl,
-    visitor::{BlockContent, Scalar, Scope, StmtTempl, Template},
+    visitor::{Scalar, Scope, StmtTempl, Template},
 };
 
 type SizeHint = (usize,Option<usize>);
 
-pub fn size_hint(attr: &AttrData, templ: &Template) -> Result<(usize,Option<usize>)> {
-    let stmts = if let Some(block) = attr.block.as_ref() {
-        let Some(BlockContent { stmts, .. }) = templ.blocks.get(block) else {
-            error!("cannot find block `{block}`")
-        };
-        stmts
-    } else {
-        &templ.stmts
-    };
-
-    Visitor {
-        blocks: &templ.blocks,
-    }
-    .visit_stmts(stmts)
+pub fn size_hint(attr: &AttrData, templ: &Template) -> Result<(usize, Option<usize>)> {
+    Visitor { templ }.visit_stmts(templ.resolve_stmts(attr)?)
 }
 
 struct Visitor<'a> {
-    blocks: &'a HashMap<Ident, BlockContent>,
+    templ: &'a Template,
 }
 
 impl Visitor<'_> {
@@ -44,11 +30,9 @@ impl Visitor<'_> {
         let size = match stmt {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static(source, _) => (source.len(), Some(source.len())),
-                Scalar::Render(RenderTempl { name, .. }) => match self.blocks.get(name) {
-                    Some(block) => self.visit_stmts(&block.stmts)?,
-                    None => error!("cannot find block `{name}`"),
-                },
-                // maybe we can detect static expression
+                Scalar::Render(RenderTempl { name, .. }) => {
+                    self.visit_stmts(self.templ.get_stmts(name)?)?
+                }
                 Scalar::Yield | Scalar::Expr(_, _) | Scalar::Use(_) | Scalar::Const(_) => (0, None),
             },
             StmtTempl::Scope(scope) => self.visit_scope(scope)?,
