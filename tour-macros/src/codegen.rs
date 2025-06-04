@@ -48,7 +48,7 @@ impl Visitor {
         match stmt {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static(source,idx) => {
-                    let src = match shared.attr.reload.as_bool() {
+                    let src = match shared.attr.reload().as_bool() {
                         Ok(cond) => if cond { quote! {&sources[#idx]} } else { quote! {#source} },
                         Err(expr) => quote! { if #expr { &sources[#idx] } else { #source } },
                     };

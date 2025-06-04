@@ -12,9 +12,9 @@ use crate::{
 };
 
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
-    let DeriveInput { mut attrs, vis: _, ident, generics, mut data } = input;
+    let DeriveInput { attrs, vis: _, ident, generics, data } = input;
 
-    let attr = AttrData::from_attr(&mut attrs)?;
+    let attr = AttrData::from_attr(&attrs)?;
     let path = attr.resolve_path();
 
     // destructor, for convenient, named fields only
@@ -58,7 +58,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let (templ,body) = generate::template(attr.resolve_source()?.as_ref(), &attr)?;
     let size_hint = generate::size_hint(&attr, &templ)?;
     let include_source = generate::include_str_source(path.as_deref());
-    let sources = generate::sources(path.as_deref(), &attr.reload, &templ.statics);
+    let sources = generate::sources(path.as_deref(), attr.reload(), &templ.statics);
 
     let layout = match templ.layout {
         Some(layout) => {
@@ -126,7 +126,7 @@ fn template_layout(source: SourceTempl, attr: AttrData) -> Result<TokenStream> {
 
             let (Template { layout, statics, .. }, body) = generate::template(&source, &self.attr)?;
             let include_source = generate::include_str_source(path.as_deref());
-            let sources = generate::sources(path.as_deref(), &self.attr.reload, &statics);
+            let sources = generate::sources(path.as_deref(), self.attr.reload(), &statics);
 
             let name = self.generate_name(path.as_deref());
             let nested_layout = match layout {

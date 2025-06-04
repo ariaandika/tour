@@ -5,13 +5,20 @@ use crate::shared::{Reload, SourceTempl, error};
 
 // ===== AttrData =====
 
+/// Derive macro type level attribute
+///
+/// Contains:
+///
+/// - source: `#[path = ".." | root = ".." | source = ".."]`
+/// - block: `#[block = Body]`
+/// - reload: `#[path = "debug" | "always" | "never" | <Expr>]`
 pub struct AttrData {
     /// `#[path = ".." | root = ".." | source = ".."]`
-    pub source: SourceTempl,
+    source: SourceTempl,
     /// `#[block = Body]`
-    pub block: Option<Ident>,
+    block: Option<Ident>,
     /// `#[path = "debug" | "always" | "never" | <Expr>]`
-    pub reload: Reload,
+    reload: Reload,
 }
 
 impl AttrData {
@@ -25,7 +32,7 @@ impl AttrData {
     }
 
     /// Parse from derive macro attributes
-    pub fn from_attr(attrs: &mut Vec<Attribute>) -> Result<Self> {
+    pub fn from_attr(attrs: &[Attribute]) -> Result<Self> {
         let Some(index) = attrs
             .iter()
             .position(|attr| attr.meta.path().is_ident("template"))
@@ -33,7 +40,7 @@ impl AttrData {
             error!("`template` attribute missing")
         };
 
-        let attr = attrs.swap_remove(index);
+        let attr = attrs[index].clone();
 
         let Meta::List(input) = attr.meta else {
             error!("expected `#[template(/* .. */)]`")
@@ -103,6 +110,14 @@ impl AttrData {
 
         Ok(Self { source, block, reload })
     }
+
+    pub fn reload(&self) -> &Reload {
+        &self.reload
+    }
+
+    pub fn block(&self) -> Option<&Ident> {
+        self.block.as_ref()
+    }
 }
 
 impl Reload {
@@ -124,7 +139,7 @@ pub struct AttrField {
 }
 
 impl AttrField {
-    pub fn from_attr(attrs: &mut Vec<Attribute>) -> Result<Self> {
+    pub fn from_attr(attrs: &[Attribute]) -> Result<Self> {
         let Some(index) = attrs
             .iter()
             .position(|attr| attr.meta.path().is_ident("fmt"))
@@ -132,7 +147,7 @@ impl AttrField {
             return Ok(Self { fmt: None })
         };
 
-        let attr = attrs.swap_remove(index);
+        let attr = attrs[index].clone();
 
         let Meta::List(input) = attr.meta else {
             error!("expected `#[fmt(/* .. */)]`")
