@@ -33,19 +33,6 @@ fn render() {
 }
 
 #[test]
-fn render_std_display_attr() {
-    #[derive(Template)]
-    #[template(source = "{{ input }}")]
-    struct Displayed {
-        #[fmt(display)]
-        input: MyDisplay,
-    }
-
-    let esc = Displayed { input: MyDisplay }.render().unwrap();
-    assert_eq!(&esc[..],"beans");
-}
-
-#[test]
 fn render_std_display_delimiter() {
     #[derive(Template)]
     #[template(source = "{% input %}")]

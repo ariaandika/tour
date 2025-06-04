@@ -4,7 +4,7 @@ use quote::{ToTokens, format_ident, quote};
 use syn::*;
 
 use crate::{
-    attribute::{AttrData, AttrField, FmtTempl},
+    attribute::AttrData,
     codegen,
     data::{File, Metadata, Template},
     shared::{SourceTempl, TemplDisplay, TemplWrite},
@@ -30,8 +30,6 @@ use crate::{
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let DeriveInput { attrs, vis: _, ident, generics, data } = input;
 
-    let displays = genutil::field_display(&data)?;
-
     // ===== parse input =====
 
     let attr = AttrData::from_attr(&attrs)?;
@@ -46,7 +44,6 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let include_source = generate::include_str_source(&templ);
     let sources = generate::sources(&templ);
     let main = quote! {
-        #displays
         #include_source
         #(#sources)*
         #body
@@ -199,34 +196,6 @@ impl LayoutVisitor {
 
 mod genutil {
     use super::*;
-
-    /// fields with `#[fmt(display)]`
-    pub fn field_display(data: &Data) -> Result<TokenStream> {
-        match data {
-            Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
-                let mut displays = quote! {};
-
-                for field in &data.fields {
-                    let attr = AttrField::from_attr(&field.attrs)?;
-                    let id = field.ident.as_ref().cloned().unwrap();
-
-                    match &attr.fmt {
-                        Some(FmtTempl::Display) => displays.extend(quote! {
-                            let #id = ::tour::Display(&#id);
-                        }),
-                        Some(FmtTempl::Debug) => displays.extend(quote! {
-                            let #id = ::tour::Display(&#id);
-                        }),
-                        None => continue,
-                    }
-                }
-
-                Ok(displays)
-            }
-            // named fields only
-            _ => Ok(quote! {})
-        }
-    }
 
     /// destruct fields for convenient
     pub fn destructor(data: &Data, ty: impl ToTokens, me: impl ToTokens) -> TokenStream {

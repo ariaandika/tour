@@ -4,8 +4,8 @@ use tour::Template;
 #[derive(Clone, Copy)]
 struct Foo;
 
-impl std::fmt::Display for Foo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl tour::TemplDisplay for Foo {
+    fn display(&self, f: &mut impl tour::TemplWrite) -> tour::Result<()> {
         f.write_str("Deez")
     }
 }
@@ -15,7 +15,6 @@ impl std::fmt::Display for Foo {
 struct Page {
     id: i32,
     name: String,
-    #[fmt(display)]
     deez: Foo,
     foos: Vec<Foo>,
 }

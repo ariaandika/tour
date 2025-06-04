@@ -122,45 +122,6 @@ impl Reload {
     }
 }
 
-// ===== AttrField =====
-
-pub struct AttrField {
-    /// `#[fmt(display | debug)]`
-    pub fmt: Option<FmtTempl>,
-}
-
-impl AttrField {
-    pub fn from_attr(attrs: &[Attribute]) -> Result<Self> {
-        let Some(index) = attrs
-            .iter()
-            .position(|attr| attr.meta.path().is_ident("fmt"))
-        else {
-            return Ok(Self { fmt: None })
-        };
-
-        let attr = attrs[index].clone();
-
-        let Meta::List(input) = attr.meta else {
-            error!("expected `#[fmt(/* .. */)]`")
-        };
-
-        let input: Ident = input.parse_args()?;
-
-        let fmt = match input.to_string().as_str() {
-            "display" => FmtTempl::Display,
-            "debug" => FmtTempl::Debug,
-            val => error!("expected one of `display` or `debug`; found `{val}`"),
-        };
-
-        Ok(Self { fmt: Some(fmt) })
-    }
-}
-
-pub enum FmtTempl {
-    Display,
-    Debug,
-}
-
 // ===== Util =====
 
 fn str_value(value: &Expr) -> Result<String> {
