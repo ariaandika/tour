@@ -11,51 +11,24 @@ use crate::{
     visitor::{SynVisitor, Template},
 };
 
+/// parse input -> codegen
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let DeriveInput { attrs, vis: _, ident, generics, data } = input;
+
+    // ===== parse input =====
 
     let attr = AttrData::from_attr(&attrs)?;
     let path = attr.resolve_path();
 
-    // destructor, for convenient, named fields only
-    let destructor = match &data {
-        Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
-            let fields = data.fields.iter().map(|f|f.ident.as_ref().expect("checked in if guard"));
-            quote! { let #ident { #(#fields),* } = self; }
-        }
-        // named fields only
-        _ => quote! {}
-    };
+    // ===== inherited parse input =====
 
-    // field with `#[fmt(display)]` attribute
-    let displays = match &mut data {
-        Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
-            let mut displays = quote! {};
+    let (templ,body) = generate::template(attr.resolve_source()?, &attr)?;
 
-            for field in &mut data.fields {
-                let attr = AttrField::from_attr(&mut field.attrs)?;
-                let id = field.ident.as_ref().cloned().unwrap();
+    // ===== codegen =====
 
-                match &attr.fmt {
-                    Some(FmtTempl::Display) => displays.extend(quote! {
-                        let #id = ::tour::Display(&#id);
-                    }),
-                    Some(FmtTempl::Debug) => displays.extend(quote! {
-                        let #id = ::tour::Display(&#id);
-                    }),
-                    None => continue,
-                }
-            }
+    let destructor = generate::destructor(&ident, &data);
+    let displays = generate::field_display(&data)?;
 
-            displays
-        }
-        // named fields only
-        _ => quote! {}
-    };
-
-    // codegen
-
-    let (templ,body) = generate::template(attr.resolve_source()?.as_ref(), &attr)?;
     let size_hint = generate::size_hint(&attr, &templ)?;
     let include_source = generate::include_str_source(path.as_deref());
     let sources = generate::sources(path.as_deref(), attr.reload(), &templ.statics);
@@ -176,6 +149,34 @@ mod generate {
     //! 3. sources, static contents as array to allow runtime reload
     use super::*;
 
+    /// fields with `#[fmt(display)]`
+    pub fn field_display(data: &Data) -> Result<TokenStream> {
+        match data {
+            Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
+                let mut displays = quote! {};
+
+                for field in &data.fields {
+                    let attr = AttrField::from_attr(&field.attrs)?;
+                    let id = field.ident.as_ref().cloned().unwrap();
+
+                    match &attr.fmt {
+                        Some(FmtTempl::Display) => displays.extend(quote! {
+                            let #id = ::tour::Display(&#id);
+                        }),
+                        Some(FmtTempl::Debug) => displays.extend(quote! {
+                            let #id = ::tour::Display(&#id);
+                        }),
+                        None => continue,
+                    }
+                }
+
+                Ok(displays)
+            }
+            // named fields only
+            _ => Ok(quote! {})
+        }
+    }
+
     pub fn template(source: &str, attr: &AttrData) -> Result<(Template,TokenStream)> {
         let templ = match Parser::new(source, SynVisitor::new()).parse() {
             Ok(ok) => ok.finish(),
@@ -227,6 +228,18 @@ mod generate {
             ],
             (false, _) if statics.is_empty() => <_>::default(),
             (false, _) => [quote!{ let sources = [#(#statics),*]; },<_>::default()],
+        }
+    }
+
+    /// destruct fields for convenient
+    pub fn destructor(ident: &Ident, data: &Data) -> TokenStream {
+        match data {
+            Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
+                let fields = data.fields.iter().map(|f|f.ident.as_ref().expect("checked in if guard"));
+                quote! { let #ident { #(#fields),* } = self; }
+            }
+            // named fields only
+            _ => quote! {}
         }
     }
 }
