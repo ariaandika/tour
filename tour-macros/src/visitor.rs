@@ -41,6 +41,7 @@ pub enum Scalar {
     Expr(Expr,Delimiter),
     Render(RenderTempl),
     Use(UseTempl),
+    Const(ConstTempl),
     Yield,
 }
 
@@ -156,6 +157,9 @@ impl Visitor<'_> for SynVisitor {
             },
             ExprTempl::Use(templ) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Use(templ)));
+            },
+            ExprTempl::Const(templ) => {
+                self.stack_mut().push(StmtTempl::Scalar(Scalar::Const(templ)));
             },
 
             // ===== open scope =====

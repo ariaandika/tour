@@ -92,7 +92,16 @@ impl Visitor {
                     templ.use_token.to_tokens(&mut self.tokens);
                     templ.leading_colon.to_tokens(&mut self.tokens);
                     templ.tree.to_tokens(&mut self.tokens);
-                    quote::__private::push_semi(&mut self.tokens);
+                    templ.semi_token.unwrap_or_default().to_tokens(&mut self.tokens);
+                },
+                Scalar::Const(templ) => {
+                    templ.const_token.to_tokens(&mut self.tokens);
+                    templ.ident.to_tokens(&mut self.tokens);
+                    templ.colon_token.to_tokens(&mut self.tokens);
+                    templ.ty.to_tokens(&mut self.tokens);
+                    templ.eq.to_tokens(&mut self.tokens);
+                    templ.expr.to_tokens(&mut self.tokens);
+                    templ.semi_token.unwrap_or_default().to_tokens(&mut self.tokens);
                 },
             },
             StmtTempl::Scope(scope) => self.visit_scope(scope, shared)?,

@@ -2,7 +2,11 @@
 //!
 //! this module provide parsing any possibles
 //! expression through [`Parse`] implementation of [`ExprTempl`]
-use syn::{parse::{Parse, ParseStream}, *};
+use syn::{
+    ext::IdentExt as _,
+    parse::{Parse, ParseStream},
+    *,
+};
 
 /// template expressions
 pub enum ExprTempl {
@@ -20,6 +24,8 @@ pub enum ExprTempl {
     Render(RenderTempl),
     /// `{{ username.get(1..6) }}`
     Expr(Expr),
+    /// `{{ const NAME: &str = "deflect" }}`
+    Const(ConstTempl),
     /// `{{ if admin }}`
     If(IfTempl),
     /// `{{ else if superuser }}`
@@ -44,6 +50,7 @@ impl Parse for ExprTempl {
             _ if input.peek(Token![static]) && input.peek2(kw::block) => input.parse().map(Self::Block),
             _ if input.peek(kw::endblock) => input.parse().map(Self::Endblock),
             _ if input.peek(kw::render) => input.parse().map(Self::Render),
+            _ if input.peek(Token![const]) => input.parse().map(Self::Const),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
             _ if input.peek(Token![else]) => input.parse().map(Self::Else),
             _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
@@ -86,6 +93,17 @@ pub struct RenderTempl {
     pub name: Ident,
 }
 
+/// `{{ const NAME: &str = "deflect" }}`
+pub struct ConstTempl {
+    pub const_token: Token![const],
+    pub ident: Ident,
+    pub colon_token: Token![:],
+    pub ty: Box<Type>,
+    pub eq: Token![=],
+    pub expr: Box<Expr>,
+    pub semi_token: Option<Token![;]>,
+}
+
 /// `{{ if admin }}`
 pub struct IfTempl {
     pub if_token: Token![if],
@@ -111,7 +129,6 @@ pub struct UseTempl {
     pub use_token: Token![use],
     pub leading_colon: Option<Token![::]>,
     pub tree: UseTree,
-    #[allow(unused)]
     pub semi_token: Option<Token![;]>,
 }
 
@@ -150,6 +167,20 @@ impl Parse for RenderTempl {
         Ok(Self {
             render_token: input.parse()?,
             name: input.parse()?,
+        })
+    }
+}
+
+impl Parse for ConstTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            const_token: input.parse()?,
+            ident: input.call(Ident::parse_any)?,
+            colon_token: input.parse()?,
+            ty: input.parse()?,
+            eq: input.parse()?,
+            expr: input.parse()?,
+            semi_token: input.parse()?,
         })
     }
 }
