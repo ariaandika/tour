@@ -50,16 +50,21 @@ impl SourceTempl {
     /// returned [`SourceTempl::shallow_clone`] will never panic.
     pub fn from_layout(layout: &LayoutTempl) -> syn::Result<SourceTempl> {
         let path = layout.path.value().into_boxed_str();
-        match std::fs::exists(path.as_ref()) {
-            Ok(true) => {},
-            Ok(false) => error!(layout.path, "cannot find file `{path}`"),
-            Err(err) => error!(layout.path,"{err}",),
-        }
-        if layout.root_token.is_some() {
-            Ok(SourceTempl::Root(path))
+        let me = if layout.root_token.is_some() {
+            SourceTempl::Root(path)
         } else {
-            Ok(SourceTempl::Path(path))
+            SourceTempl::Path(path)
+        };
+
+        if let Some(path) = me.resolve_path() {
+            match std::fs::exists(path.as_ref()) {
+                Ok(true) => (),
+                Ok(false) => error!(layout.path, "cannot find file `{path}`"),
+                Err(err) => error!(layout.path, "{err}",),
+            }
         }
+
+        Ok(me)
     }
 
     pub fn resolve_source(&self) -> syn::Result<Cow<'_,str>> {

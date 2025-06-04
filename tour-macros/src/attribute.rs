@@ -1,6 +1,9 @@
-use syn::{punctuated::Punctuated, *};
+use syn::{punctuated::Punctuated, spanned::Spanned, *};
 
-use crate::{data::Metadata, shared::{error, Reload, SourceTempl}};
+use crate::{
+    data::Metadata,
+    shared::{Reload, SourceTempl, error},
+};
 
 // ===== AttrData =====
 
@@ -72,13 +75,23 @@ impl AttrData {
                 continue;
             }
 
-            let value = str_value(&input.value)?.into_boxed_str();
-            let dupl = source.replace(match &key[..] {
-                "path" => SourceTempl::Path(value),
-                "root" => SourceTempl::Root(value),
-                "source" => SourceTempl::Source(value),
+            let path = str_value(&input.value)?.into_boxed_str();
+            let me = match &key[..] {
+                "path" => SourceTempl::Path(path),
+                "root" => SourceTempl::Root(path),
+                "source" => SourceTempl::Source(path),
                 _ => error!("expected one of `path`, `root`, `source`, or `reload`; found `{key}`"),
-            });
+            };
+
+            if let Some(path) = me.resolve_path() {
+                match std::fs::exists(path.as_ref()) {
+                    Ok(true) => (),
+                    Ok(false) => error!(input.value, "cannot find file `{path}`"),
+                    Err(err) => error!(input.value, "{err}",),
+                }
+            }
+
+            let dupl = source.replace(me);
 
             if dupl.is_some() {
                 error!("duplicate key `path`, `root`, or `source`")
