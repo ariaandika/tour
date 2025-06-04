@@ -1,6 +1,7 @@
 use syn::*;
 
 use crate::{
+    attribute::AttrData,
     shared::Reload,
     syntax::{BlockTempl, LayoutTempl},
     visitor::StmtTempl,
@@ -23,12 +24,17 @@ impl Metadata {
         }
     }
 
-    pub fn from_layout(layout: LayoutTempl, reload: Reload) -> Result<Metadata> {
-        Ok(Self {
-            path: crate::shared::SourceTempl::from_layout(&layout)?.resolve_path(),
+    pub fn from_attr(attr: &AttrData) -> Metadata {
+        let path = attr.source().resolve_path();
+        Metadata::new(path, attr.reload().clone(), attr.block().cloned())
+    }
+
+    pub fn from_layout(layout: LayoutTempl, reload: Reload) -> Metadata {
+        Self {
+            path: crate::shared::SourceTempl::from_layout(&layout).resolve_path(),
             reload,
             block: None, // TODO: allows select block for a layout
-        })
+        }
     }
 }
 

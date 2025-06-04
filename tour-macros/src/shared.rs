@@ -48,23 +48,24 @@ impl SourceTempl {
     ///
     /// Currently, there is no way to define layout as inline, so calling
     /// returned [`SourceTempl::shallow_clone`] will never panic.
-    pub fn from_layout(layout: &LayoutTempl) -> syn::Result<SourceTempl> {
+    pub fn from_layout(layout: &LayoutTempl) -> SourceTempl {
         let path = layout.path.value().into_boxed_str();
-        let me = if layout.root_token.is_some() {
+        if layout.root_token.is_some() {
             SourceTempl::Root(path)
         } else {
             SourceTempl::Path(path)
-        };
+        }
+    }
 
-        if let Some(path) = me.resolve_path() {
+    pub fn validate(&self, span: &impl syn::spanned::Spanned) -> syn::Result<()> {
+        if let Some(path) = self.resolve_path() {
             match std::fs::exists(path.as_ref()) {
                 Ok(true) => (),
-                Ok(false) => error!(layout.path, "cannot find file `{path}`"),
-                Err(err) => error!(layout.path, "{err}",),
+                Ok(false) => error!(span, "cannot find file `{path}`"),
+                Err(err) => error!(span, "{err}",),
             }
         }
-
-        Ok(me)
+        Ok(())
     }
 
     pub fn resolve_source(&self) -> syn::Result<Cow<'_,str>> {

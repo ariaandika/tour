@@ -37,7 +37,8 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     // ===== parse input =====
 
     let attr = AttrData::from_attr(&attrs)?;
-    let meta = attr.to_meta();
+    attr.source().validate(&ident)?;
+    let meta = Metadata::from_attr(&attr);
     let file = generate::file(attr.source())?;
     let templ = Template::new(meta, file);
     let body = codegen::generate(&templ)?;
@@ -114,8 +115,10 @@ fn template_layout(source: LayoutTempl, attr: AttrData) -> Result<TokenStream> {
         fn visit_layout(mut self, layout: LayoutTempl) -> Result<TokenStream> {
             // ===== parse input =====
 
-            let source = SourceTempl::from_layout(&layout)?;
-            let meta = Metadata::from_layout(layout, self.attr.reload().clone())?;
+            let span = layout.path.span();
+            let source = SourceTempl::from_layout(&layout);
+            source.validate(&span)?;
+            let meta = Metadata::from_layout(layout, self.attr.reload().clone());
             let file = generate::file(&source)?;
             let templ = Template::new(meta, file);
             let body = codegen::generate(&templ)?;
