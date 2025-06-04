@@ -36,7 +36,7 @@ fn main() {
             deez: Foo,
             foos: vec![Foo;4],
         };
-        let result = page.render_layout().unwrap();
+        let result = page.render().unwrap();
 
         let inlined = Inline { name: format!("foo {}",4) }.render().unwrap();
 

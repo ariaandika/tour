@@ -7,10 +7,6 @@ use crate::{Result, TemplWrite};
 pub trait Template {
     fn render_into(&self, render: &mut impl TemplWrite) -> Result<()>;
 
-    fn render_layout_into(&self, render: &mut impl TemplWrite) -> Result<()> {
-        self.render_into(render)
-    }
-
     fn render_block_into(&self, _block: &str, _render: &mut impl TemplWrite) -> Result<()> {
         Err(crate::Error::NoBlock)
     }
@@ -18,12 +14,6 @@ pub trait Template {
     fn render(&self) -> Result<String> {
         let mut buffer = String::with_capacity(128);
         self.render_into(&mut buffer)?;
-        Ok(buffer)
-    }
-
-    fn render_layout(&self) -> Result<String> {
-        let mut buffer = String::with_capacity(128);
-        self.render_layout_into(&mut buffer)?;
         Ok(buffer)
     }
 

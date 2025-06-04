@@ -8,10 +8,10 @@ fn nested_layout() {
         name: String,
     }
 
-    let layout = NestedLayout { name: "barred".into() }.render_layout().unwrap();
+    let layout = NestedLayout { name: "barred".into() }.render().unwrap();
     assert_eq!(
         &layout[..],
-        r#"<section id="layout1"><section id="layout2"><section id="layout3">Token barred once
+        r#"<section id="layout3"><section id="layout2"><section id="layout1">Token barred once
 </section>
 </section>
 </section>
