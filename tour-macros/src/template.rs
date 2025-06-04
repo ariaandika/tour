@@ -1,6 +1,6 @@
 //! `Template` derive macro
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote, ToTokens};
+use quote::{ToTokens, format_ident, quote};
 use syn::*;
 use tour_core::{ParseError, Parser};
 
@@ -9,6 +9,7 @@ use crate::{
     codegen,
     data::{File, Metadata, Template},
     shared::{SourceTempl, TemplDisplay, TemplWrite, error},
+    sizehint::{self, SizeHint},
     syntax::LayoutTempl,
     visitor::SynVisitor,
 };
@@ -54,18 +55,20 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         Ok(())
     };
 
-    let size_hint = generate::size_hint(&templ)?;
+    let mut size_hint = sizehint::size_hint(&templ)?;
 
     let (main,expr) = match templ.into_layout() {
         Some(layout) => {
             let main_name = format_ident!("Main{ident}");
             let destructor = genutil::destructor(&data, &ident, quote! { &self.0 });
 
-            let (layouts,names) = template_layout(layout, attr)?;
+            let (layouts, visitor) = template_layout(layout, attr)?;
             let fold = [main_name.clone()]
                 .into_iter()
-                .chain(names)
+                .chain(visitor.names)
                 .fold(quote!(&self), |acc, n| quote!(#n(#acc)));
+
+            size_hint = sizehint::add_size_hint(size_hint, visitor.size_hint);
 
             let main = quote! {
                 struct #main_name<'a>(&'a #ident);
@@ -90,6 +93,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         },
     };
 
+    let size_hint = genutil::size_hint(size_hint);
     let (g1,g2,g3) = generics.split_for_impl();
 
     Ok(quote! {
@@ -116,76 +120,83 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 }
 
 /// Returns `(layout,generated layout names)`
-fn template_layout(source: LayoutTempl, attr: AttrData) -> Result<(TokenStream, Vec<Ident>)> {
-    struct Visitor<'a> {
-        names: &'a mut Vec<Ident>,
-        counter: usize,
-        attr: AttrData,
-    }
-
-    impl Visitor<'_> {
-        fn generate_name(&mut self, templ: &Template) -> Ident {
-            self.counter += 1;
-            let suffix = match templ.path() {
-                Some(path) => std::path::Path::new(path)
-                    .file_stem()
-                    .and_then(|e|e.to_str())
-                    .unwrap_or("OsFile"),
-                None => "Inline",
-            };
-            let name = format_ident!("L{}{suffix}",self.counter);
-            self.names.push(name.clone());
-            name
-        }
-
-        fn visit_layout(mut self, layout: LayoutTempl) -> Result<TokenStream> {
-            // ===== parse input =====
-
-            let source = SourceTempl::from_layout(&layout);
-            source.validate(&layout.path)?;
-            let meta = Metadata::from_layout(layout, self.attr.reload().clone());
-            let file = generate::file(&source)?;
-            let templ = Template::new(meta, file);
-
-            // ===== codegen =====
-
-            let body = codegen::generate(&templ)?;
-            let include_source = generate::include_str_source(&templ);
-            let sources = generate::sources(&templ);
-            let body = quote! {
-                #include_source
-                #(#sources)*
-                #body
-                Ok(())
-            };
-
-            let name = self.generate_name(&templ);
-            let nested_layout = match templ.into_layout() {
-                Some(layout) => self.visit_layout(layout)?,
-                None => quote! { },
-            };
-
-            Ok(quote! {
-                struct #name<S>(S);
-
-                #[automatically_derived]
-                impl<S: #TemplDisplay> #TemplDisplay for #name<S> {
-                    fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                        #body
-                    }
-                }
-
-                #nested_layout
-            })
-        }
-    }
-
-    let mut names = vec![];
-
-    let visitor = Visitor { names: &mut names, counter: 0, attr };
+fn template_layout(source: LayoutTempl, attr: AttrData) -> Result<(TokenStream, LayoutVisitor)> {
+    let mut visitor = LayoutVisitor {
+        names: vec![],
+        size_hint: (0, None),
+        counter: 0,
+        attr,
+    };
     let layout = visitor.visit_layout(source)?;
 
-    Ok((layout,names))
+    Ok((layout, visitor))
+}
+
+struct LayoutVisitor {
+    names: Vec<Ident>,
+    size_hint: SizeHint,
+    counter: usize,
+    attr: AttrData,
+}
+
+impl LayoutVisitor {
+    fn generate_name(&mut self, templ: &Template) -> Ident {
+        self.counter += 1;
+        let suffix = match templ.path() {
+            Some(path) => std::path::Path::new(path)
+                .file_stem()
+                .and_then(|e|e.to_str())
+                .unwrap_or("OsFile"),
+            None => "Inline",
+        };
+        let name = format_ident!("L{}{suffix}",self.counter);
+        self.names.push(name.clone());
+        name
+    }
+
+    fn visit_layout(&mut self, layout: LayoutTempl) -> Result<TokenStream> {
+        // ===== parse input =====
+
+        let source = SourceTempl::from_layout(&layout);
+        source.validate(&layout.path)?;
+        let meta = Metadata::from_layout(layout, self.attr.reload().clone());
+        let file = generate::file(&source)?;
+        let templ = Template::new(meta, file);
+
+        // ===== codegen =====
+
+        let body = codegen::generate(&templ)?;
+        let include_source = generate::include_str_source(&templ);
+        let sources = generate::sources(&templ);
+        let body = quote! {
+            #include_source
+            #(#sources)*
+            #body
+            Ok(())
+        };
+
+        let size_hint = sizehint::size_hint(&templ)?;
+        self.size_hint = sizehint::add_size_hint(self.size_hint, size_hint);
+
+        let name = self.generate_name(&templ);
+        let nested_layout = match templ.into_layout() {
+            Some(layout) => self.visit_layout(layout)?,
+            None => quote! { },
+        };
+
+        Ok(quote! {
+            struct #name<S>(S);
+
+            #[automatically_derived]
+            impl<S: #TemplDisplay> #TemplDisplay for #name<S> {
+                fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                    #body
+                }
+            }
+
+            #nested_layout
+        })
+    }
 }
 
 mod genutil {
@@ -230,6 +241,18 @@ mod genutil {
             _ => quote! {}
         }
     }
+
+    pub fn size_hint((min, max): SizeHint) -> TokenStream {
+        let max = match max {
+            Some(max) => quote! { Some(#max) },
+            None => quote! { None },
+        };
+        quote! {
+            fn size_hint(&self) -> (usize,Option<usize>) {
+                (#min,#max)
+            }
+        }
+    }
 }
 
 mod generate {
@@ -247,19 +270,6 @@ mod generate {
             Ok(ok) => Ok(ok.finish()),
             Err(ParseError::Generic(err)) => error!("{err}"),
         }
-    }
-
-    pub fn size_hint(templ: &Template) -> Result<TokenStream> {
-        let (min,max) = crate::sizehint::size_hint(templ)?;
-        let max = match max {
-            Some(max) => quote! { Some(#max) },
-            None => quote! { None },
-        };
-        Ok(quote! {
-            fn size_hint(&self) -> (usize,Option<usize>) {
-                (#min,#max)
-            }
-        })
     }
 
     pub fn include_str_source(templ: &Template) -> TokenStream {

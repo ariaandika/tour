@@ -12,7 +12,8 @@ pub trait Template {
     }
 
     fn render(&self) -> Result<String> {
-        let mut buffer = String::with_capacity(128);
+        let (min,max) = self.size_hint();
+        let mut buffer = String::with_capacity(max.unwrap_or(min));
         self.render_into(&mut buffer)?;
         Ok(buffer)
     }

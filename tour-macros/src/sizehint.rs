@@ -6,7 +6,7 @@ use crate::{
     visitor::{Scalar, Scope, StmtTempl},
 };
 
-type SizeHint = (usize,Option<usize>);
+pub type SizeHint = (usize,Option<usize>);
 
 pub fn size_hint(templ: &Template) -> Result<(usize, Option<usize>)> {
     Visitor { templ }.visit_stmts(templ.stmts()?)
@@ -77,7 +77,7 @@ impl Visitor<'_> {
     }
 }
 
-fn add_size_hint(s1: SizeHint, s2: SizeHint) -> SizeHint {
+pub fn add_size_hint(s1: SizeHint, s2: SizeHint) -> SizeHint {
     (
         s1.0 + s2.0,
         match (s1.1,s2.1) {
@@ -89,7 +89,7 @@ fn add_size_hint(s1: SizeHint, s2: SizeHint) -> SizeHint {
     )
 }
 
-fn merge_size_hint(s1: SizeHint, s2: SizeHint) -> SizeHint {
+pub fn merge_size_hint(s1: SizeHint, s2: SizeHint) -> SizeHint {
     (
         s1.0.min(s2.0),
         match (s1.1,s2.1) {
