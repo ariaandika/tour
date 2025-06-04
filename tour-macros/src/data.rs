@@ -1,10 +1,11 @@
 use syn::*;
+use tour_core::{ParseError, Parser};
 
 use crate::{
     attribute::AttrData,
-    shared::Reload,
+    shared::{Reload, SourceTempl, error},
     syntax::{BlockTempl, LayoutTempl},
-    visitor::StmtTempl,
+    visitor::{StmtTempl, SynVisitor},
 };
 
 /// Extra information declared outside template file.
@@ -59,6 +60,13 @@ impl File {
             blocks,
             statics,
             stmts,
+        }
+    }
+
+    pub fn from_source(source: &SourceTempl) -> Result<File> {
+        match Parser::new(source.resolve_source()?.as_ref(), SynVisitor::new()).parse() {
+            Ok(ok) => Ok(ok.finish()),
+            Err(ParseError::Generic(err)) => error!("{err}"),
         }
     }
 }

@@ -2,16 +2,14 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::*;
-use tour_core::{ParseError, Parser};
 
 use crate::{
     attribute::{AttrData, AttrField, FmtTempl},
     codegen,
     data::{File, Metadata, Template},
-    shared::{SourceTempl, TemplDisplay, TemplWrite, error},
+    shared::{SourceTempl, TemplDisplay, TemplWrite},
     sizehint::{self, SizeHint},
     syntax::LayoutTempl,
-    visitor::SynVisitor,
 };
 
 /// parse input -> codegen
@@ -39,7 +37,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let attr = AttrData::from_attr(&attrs)?;
     attr.source().validate(&ident)?;
     let meta = Metadata::from_attr(&attr);
-    let file = generate::file(attr.source())?;
+    let file = File::from_source(attr.source())?;
     let templ = Template::new(meta, file);
 
     // ===== codegen =====
@@ -160,7 +158,7 @@ impl LayoutVisitor {
         let source = SourceTempl::from_layout(&layout);
         source.validate(&layout.path)?;
         let meta = Metadata::from_layout(layout, self.attr.reload().clone());
-        let file = generate::file(&source)?;
+        let file = File::from_source(&source)?;
         let templ = Template::new(meta, file);
 
         // ===== codegen =====
@@ -264,13 +262,6 @@ mod generate {
     //! 2. include_str_source, `include_str!()` to trigger recompile on template change
     //! 3. sources, static contents as array to allow runtime reload
     use super::*;
-
-    pub fn file(source: &SourceTempl) -> Result<File> {
-        match Parser::new(source.resolve_source()?.as_ref(), SynVisitor::new()).parse() {
-            Ok(ok) => Ok(ok.finish()),
-            Err(ParseError::Generic(err)) => error!("{err}"),
-        }
-    }
 
     pub fn include_str_source(templ: &Template) -> TokenStream {
         match templ.path() {
