@@ -10,10 +10,8 @@ use syn::{
 
 /// template expressions
 pub enum ExprTempl {
-    /// `{{ layout "layout.html" }}`
+    /// `{{ layout "layout.html" }}`, `{{ extends "layout.html" }}`
     Layout(LayoutTempl),
-    /// `{{ extends "layout.html" }}`
-    Extends(ExtendsTempl),
     /// `{{ yield }}`
     Yield(Token![yield]),
     /// `{{ block Body }}`
@@ -44,7 +42,7 @@ impl Parse for ExprTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         match () {
             _ if input.peek(kw::layout) => input.parse().map(Self::Layout),
-            _ if input.peek(kw::extends) => input.parse().map(Self::Extends),
+            _ if input.peek(kw::extends) => input.parse().map(Self::Layout),
             _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
             _ if input.peek(kw::block) => input.parse().map(Self::Block),
             _ if input.peek(Token![static]) && input.peek2(kw::block) => input.parse().map(Self::Block),
@@ -67,15 +65,7 @@ pub struct LayoutTempl {
     #[allow(dead_code)]
     pub layout_token: kw::layout,
     pub root_token: Option<kw::root>,
-    pub source: LitStr,
-}
-
-/// `{{ extends "layout.html" }}`
-pub struct ExtendsTempl {
-    #[allow(dead_code)]
-    pub extends_token: kw::extends,
-    pub root_token: Option<kw::root>,
-    pub source: LitStr,
+    pub path: LitStr,
 }
 
 /// `{{ block Body }}`
@@ -135,19 +125,13 @@ pub struct UseTempl {
 impl Parse for LayoutTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
-            layout_token: input.parse()?,
+            layout_token: match () {
+                _ if input.peek(kw::layout) => input.parse()?,
+                _ if input.peek(kw::extends) => kw::layout(input.parse::<kw::extends>()?.span),
+                _ => unreachable!()
+            },
             root_token: input.parse()?,
-            source: input.parse()?,
-        })
-    }
-}
-
-impl Parse for ExtendsTempl {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            extends_token: input.parse()?,
-            root_token: input.parse()?,
-            source: input.parse()?,
+            path: input.parse()?,
         })
     }
 }

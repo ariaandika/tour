@@ -7,33 +7,48 @@ use tour_core::{ParseError, Parser};
 use crate::{
     attribute::{AttrData, AttrField, FmtTempl},
     codegen,
-    shared::{Reload, SourceTempl, TemplDisplay, TemplWrite, error},
-    visitor::{SynVisitor, Template},
+    data::{File, Metadata, Template},
+    shared::{SourceTempl, TemplDisplay, TemplWrite, error},
+    syntax::LayoutTempl,
+    visitor::SynVisitor,
 };
 
 /// parse input -> codegen
+///
+/// Inputs:
+///
+/// - [`AttrData`]: derive macro attribute
+/// - [`SourceTempl`]: layout declaration
+/// - [`Template`]: template source code
+///
+/// all function should accept the whole either input type
+///
+/// ```custom
+/// AttrData -> (Metadata,SourceTempl) -> (Metadata,File) -> Template
+///
+/// LayoutTempl -> (Metadata,SourceTempl) -> (Metadata,File) -> Template
+/// ```
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let DeriveInput { attrs, vis: _, ident, generics, data } = input;
 
     // ===== parse input =====
 
     let attr = AttrData::from_attr(&attrs)?;
-    let path = attr.resolve_path();
-
-    // ===== inherited parse input =====
-
-    let (templ,body) = generate::template(attr.resolve_source()?, &attr)?;
+    let meta = attr.to_meta();
+    let file = generate::file(attr.source())?;
+    let templ = Template::new(meta, file);
+    let body = codegen::generate(&templ)?;
 
     // ===== codegen =====
 
-    let destructor = generate::destructor(&ident, &data);
-    let displays = generate::field_display(&data)?;
+    let destructor = genutil::destructor(&ident, &data);
+    let displays = genutil::field_display(&data)?;
 
-    let size_hint = generate::size_hint(&attr, &templ)?;
-    let include_source = generate::include_str_source(path.as_deref());
-    let sources = generate::sources(path.as_deref(), attr.reload(), &templ.statics);
+    let size_hint = generate::size_hint(&templ)?;
+    let include_source = generate::include_str_source(&templ);
+    let sources = generate::sources(&templ);
 
-    let layout = match templ.layout {
+    let layout = match templ.into_layout() {
         Some(layout) => {
             let layout = template_layout(layout, attr)?;
             quote! {
@@ -74,7 +89,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     })
 }
 
-fn template_layout(source: SourceTempl, attr: AttrData) -> Result<TokenStream> {
+fn template_layout(source: LayoutTempl, attr: AttrData) -> Result<TokenStream> {
     struct Visitor<'a> {
         names: &'a mut Vec<Ident>,
         counter: usize,
@@ -82,28 +97,37 @@ fn template_layout(source: SourceTempl, attr: AttrData) -> Result<TokenStream> {
     }
 
     impl Visitor<'_> {
-        fn generate_name(&mut self, path: Option<&str>) -> Ident {
+        fn generate_name(&mut self, templ: &Template) -> Ident {
             self.counter += 1;
-            let suffix = std::path::Path::new(path.unwrap_or("Inline"))
-                .file_stem()
-                .and_then(|e|e.to_str())
-                .unwrap_or("OsFile");
+            let suffix = match templ.path() {
+                Some(path) => std::path::Path::new(path)
+                    .file_stem()
+                    .and_then(|e|e.to_str())
+                    .unwrap_or("OsFile"),
+                None => "Inline",
+            };
             let name = format_ident!("L{}{suffix}",self.counter);
             self.names.push(name.clone());
             name
         }
 
-        fn visit_layout(mut self, source: SourceTempl) -> Result<TokenStream> {
-            let path = source.resolve_path();
-            let source = source.resolve_source()?;
+        fn visit_layout(mut self, layout: LayoutTempl) -> Result<TokenStream> {
+            // ===== parse input =====
 
-            let (Template { layout, statics, .. }, body) = generate::template(&source, &self.attr)?;
-            let include_source = generate::include_str_source(path.as_deref());
-            let sources = generate::sources(path.as_deref(), self.attr.reload(), &statics);
+            let source = SourceTempl::from_layout(&layout)?;
+            let meta = Metadata::from_layout(layout, self.attr.reload().clone())?;
+            let file = generate::file(&source)?;
+            let templ = Template::new(meta, file);
+            let body = codegen::generate(&templ)?;
 
-            let name = self.generate_name(path.as_deref());
-            let nested_layout = match layout {
-                Some(source) => self.visit_layout(source)?,
+            // ===== codegen =====
+
+            let include_source = generate::include_str_source(&templ);
+            let sources = generate::sources(&templ);
+
+            let name = self.generate_name(&templ);
+            let nested_layout = match templ.into_layout() {
+                Some(layout) => self.visit_layout(layout)?,
                 None => quote! { },
             };
 
@@ -139,14 +163,7 @@ fn template_layout(source: SourceTempl, attr: AttrData) -> Result<TokenStream> {
     })
 }
 
-mod generate {
-    //! contains functions to generate code step by step
-    //!
-    //! it is splitted because root template and layout template have different step
-    //!
-    //! 1. template, template body
-    //! 2. include_str_source, `include_str!()` to trigger recompile on template change
-    //! 3. sources, static contents as array to allow runtime reload
+mod genutil {
     use super::*;
 
     /// fields with `#[fmt(display)]`
@@ -177,17 +194,38 @@ mod generate {
         }
     }
 
-    pub fn template(source: &str, attr: &AttrData) -> Result<(Template,TokenStream)> {
-        let templ = match Parser::new(source, SynVisitor::new()).parse() {
-            Ok(ok) => ok.finish(),
+    /// destruct fields for convenient
+    pub fn destructor(ident: &Ident, data: &Data) -> TokenStream {
+        match data {
+            Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
+                let fields = data.fields.iter().map(|f|f.ident.as_ref().expect("checked in if guard"));
+                quote! { let #ident { #(#fields),* } = self; }
+            }
+            // named fields only
+            _ => quote! {}
+        }
+    }
+}
+
+mod generate {
+    //! contains functions to generate code step by step
+    //!
+    //! it is splitted because root template and layout template have different step
+    //!
+    //! 1. template, template body
+    //! 2. include_str_source, `include_str!()` to trigger recompile on template change
+    //! 3. sources, static contents as array to allow runtime reload
+    use super::*;
+
+    pub fn file(source: &SourceTempl) -> Result<File> {
+        match Parser::new(source.resolve_source()?.as_ref(), SynVisitor::new()).parse() {
+            Ok(ok) => Ok(ok.finish()),
             Err(ParseError::Generic(err)) => error!("{err}"),
-        };
-        let body = codegen::generate(attr, &templ)?;
-        Ok((templ,body))
+        }
     }
 
-    pub fn size_hint(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
-        let (min,max) = crate::sizehint::size_hint(attr, templ)?;
+    pub fn size_hint(templ: &Template) -> Result<TokenStream> {
+        let (min,max) = crate::sizehint::size_hint(templ)?;
         let max = match max {
             Some(max) => quote! { Some(#max) },
             None => quote! { None },
@@ -199,12 +237,17 @@ mod generate {
         })
     }
 
-    pub fn include_str_source(path: Option<&str>) -> Option<TokenStream> {
-        path.map(|path|quote!{const _: &str = include_str!(#path);})
+    pub fn include_str_source(templ: &Template) -> TokenStream {
+        match templ.path() {
+            Some(path) => quote! { const _DEEZ: &str = #path; const _: &str = include_str!(#path); },
+            None => quote! { },
+        }
     }
 
-    pub fn sources(path: Option<&str>, reload: &Reload, statics: &[String]) -> [TokenStream;2] {
-        match (path.is_some(), reload.as_bool()) {
+    pub fn sources(templ: &Template) -> [TokenStream;2] {
+        let path = templ.path();
+        let statics = templ.statics();
+        match (path.is_some(), templ.reload().as_bool()) {
             (true,Ok(true)) => [
                 quote!{ let sources = ::std::fs::read_to_string(#path)?; },
                 quote!{ let sources = ::tour::Parser::new(&sources,::tour::StaticVisitor::new()).parse()?.statics; },
@@ -228,18 +271,6 @@ mod generate {
             ],
             (false, _) if statics.is_empty() => <_>::default(),
             (false, _) => [quote!{ let sources = [#(#statics),*]; },<_>::default()],
-        }
-    }
-
-    /// destruct fields for convenient
-    pub fn destructor(ident: &Ident, data: &Data) -> TokenStream {
-        match data {
-            Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
-                let fields = data.fields.iter().map(|f|f.ident.as_ref().expect("checked in if guard"));
-                quote! { let #ident { #(#fields),* } = self; }
-            }
-            // named fields only
-            _ => quote! {}
         }
     }
 }

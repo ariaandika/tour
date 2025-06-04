@@ -3,26 +3,24 @@ use quote::{ToTokens, format_ident, quote};
 use syn::*;
 
 use crate::{
-    attribute::AttrData,
+    data::Template,
     shared::{self, TemplDisplay},
     syntax::RenderTempl,
-    visitor::{Scalar, Scope, StmtTempl, Template},
+    visitor::{Scalar, Scope, StmtTempl},
 };
 
-pub fn generate(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
+pub fn generate(templ: &Template) -> Result<TokenStream> {
     let shared = Shared {
-        attr,
         templ,
     };
 
     let mut visitor = Visitor::default();
-    visitor.visit_stmts(templ.resolve_stmts(attr)?, &shared)?;
+    visitor.visit_stmts(templ.stmts()?, &shared)?;
 
     Ok(visitor.tokens)
 }
 
 struct Shared<'a> {
-    attr: &'a AttrData,
     templ: &'a Template,
 }
 
@@ -47,8 +45,9 @@ impl Visitor {
     fn visit_stmt(&mut self, stmt: &StmtTempl, shared: &Shared) -> Result<()> {
         match stmt {
             StmtTempl::Scalar(scalar) => match scalar {
-                Scalar::Static(source,idx) => {
-                    let src = match shared.attr.reload().as_bool() {
+                Scalar::Static(source, idx) => {
+                    let idx = Index::from(*idx as usize);
+                    let src = match shared.templ.reload().as_bool() {
                         Ok(cond) => if cond { quote! {&sources[#idx]} } else { quote! {#source} },
                         Err(expr) => quote! { if #expr { &sources[#idx] } else { #source } },
                     };
@@ -64,7 +63,7 @@ impl Visitor {
                     });
                 },
                 Scalar::Render(RenderTempl { name, .. }) => {
-                    self.visit_stmts(shared.templ.get_stmts(name)?, shared)?
+                    self.visit_stmts(&shared.templ.get_block(name)?.stmts, shared)?
                 },
                 Scalar::Expr(expr, delim) => {
                     let display = shared::display(*delim, expr);

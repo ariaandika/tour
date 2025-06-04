@@ -1,15 +1,15 @@
 use syn::*;
 
 use crate::{
-    attribute::AttrData,
+    data::Template,
     syntax::RenderTempl,
-    visitor::{Scalar, Scope, StmtTempl, Template},
+    visitor::{Scalar, Scope, StmtTempl},
 };
 
 type SizeHint = (usize,Option<usize>);
 
-pub fn size_hint(attr: &AttrData, templ: &Template) -> Result<(usize, Option<usize>)> {
-    Visitor { templ }.visit_stmts(templ.resolve_stmts(attr)?)
+pub fn size_hint(templ: &Template) -> Result<(usize, Option<usize>)> {
+    Visitor { templ }.visit_stmts(templ.stmts()?)
 }
 
 struct Visitor<'a> {
@@ -31,7 +31,7 @@ impl Visitor<'_> {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static(source, _) => (source.len(), Some(source.len())),
                 Scalar::Render(RenderTempl { name, .. }) => {
-                    self.visit_stmts(self.templ.get_stmts(name)?)?
+                    self.visit_stmts(&self.templ.get_block(name)?.stmts)?
                 }
                 Scalar::Yield | Scalar::Expr(_, _) | Scalar::Use(_) | Scalar::Const(_) => (0, None),
             },

@@ -1,5 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
+use std::borrow::Cow;
 use tour_core::Delimiter;
 
 /// `ToTokens` for public name
@@ -20,50 +21,70 @@ impl quote::ToTokens for TemplWrite {
     }
 }
 
+/// Runtime template reload behavior.
 #[derive(Clone)]
 pub enum Reload {
     Debug,
     Always,
     Never,
-    Expr(syn::Expr),
+    Expr(Box<syn::Expr>),
 }
 
-/// Represent a template source reference.
+/// Template reference.
 ///
-/// - `Path`: string path relative to `templates` directory
-/// - `Root`: string path relative to current directory
+/// Used in derive attribute (`#[path = ".."]`) or layout declaration (`{{ extends ".." }}`).
+///
+/// - `Path`: path relative to `templates` directory
+/// - `Root`: path relative to current directory
 /// - `Source`: the source string is inlined
 pub enum SourceTempl {
-    Path(String),
-    Root(String),
-    Source(String),
+    Path(Box<str>),
+    Root(Box<str>),
+    Source(Box<str>),
 }
 
 impl SourceTempl {
-    pub fn resolve_source(&self) -> syn::Result<std::borrow::Cow<'_,str>> {
+    /// Create [`SourceTempl`] from layout declaration.
+    ///
+    /// Currently, there is no way to define layout as inline, so calling
+    /// returned [`SourceTempl::shallow_clone`] will never panic.
+    pub fn from_layout(layout: &LayoutTempl) -> syn::Result<SourceTempl> {
+        let path = layout.path.value().into_boxed_str();
+        match std::fs::exists(path.as_ref()) {
+            Ok(true) => {},
+            Ok(false) => error!(layout.path, "cannot find file `{path}`"),
+            Err(err) => error!(layout.path,"{err}",),
+        }
+        if layout.root_token.is_some() {
+            Ok(SourceTempl::Root(path))
+        } else {
+            Ok(SourceTempl::Path(path))
+        }
+    }
+
+    pub fn resolve_source(&self) -> syn::Result<Cow<'_,str>> {
         match self.resolve_path() {
-            Some(path) => Ok(error!(!std::fs::read_to_string(path)).into()),
-            None => if let Self::Source(src) = &self {
-                Ok(src.into())
-            } else {
-                unreachable!()
+            Some(path) => Ok(error!(!std::fs::read_to_string(path.as_ref())).into()),
+            None => match self {
+                Self::Source(src) => Ok(Cow::Borrowed(src.as_ref())),
+                _ => unreachable!(),
             },
         }
     }
 
     /// Return `Some` if template is external and have path.
-    pub fn resolve_path(&self) -> Option<String> {
+    pub fn resolve_path(&self) -> Option<Box<str>> {
         match self {
             Self::Path(path) => {
                 let mut cwd = std::env::current_dir().expect("failed to get current directory");
                 cwd.push("templates");
-                cwd.push(path);
-                Some(cwd.to_string_lossy().into_owned())
+                cwd.push(path.as_ref());
+                Some(cwd.to_string_lossy().into_owned().into_boxed_str())
             },
             Self::Root(path) => {
                 let mut cwd = std::env::current_dir().expect("failed to get current directory");
-                cwd.push(path);
-                Some(cwd.to_string_lossy().into_owned())
+                cwd.push(path.as_ref());
+                Some(cwd.to_string_lossy().into_owned().into_boxed_str())
             }
             Self::Source(_) => None,
         }
@@ -117,3 +138,6 @@ macro_rules! error {
 }
 
 pub(crate) use error;
+
+use crate::syntax::LayoutTempl;
+

@@ -5,12 +5,18 @@
 mod syntax;
 mod shared;
 
+// ===== Input =====
 mod attribute;
 mod visitor;
 
+// ===== Data =====
+mod data;
+
+// ===== Output =====
 mod sizehint;
 mod codegen;
 mod template;
+
 
 /// Derive macro for `Template` trait
 #[proc_macro_derive(Template, attributes(template,fmt))]

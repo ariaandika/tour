@@ -1,11 +1,9 @@
 //! [`Visitor`] implementation via syn
-use std::collections::HashMap;
 use syn::*;
 use tour_core::{Delimiter, ParseError, Result, Visitor};
 
 use crate::{
-    attribute::AttrData,
-    shared::SourceTempl,
+    data::{BlockContent, File},
     syntax::{ExprTempl, *},
 };
 
@@ -18,43 +16,13 @@ macro_rules! error {
 // NOTE: this module should not do any codegen
 // only collect all tokens in Visitor implementation
 
-/// Contains a single file template information.
-pub struct Template {
-    pub layout: Option<SourceTempl>,
-    pub blocks: HashMap<Ident, BlockContent>,
-    pub statics: Vec<String>,
-    pub stmts: Vec<StmtTempl>,
-}
-
-impl Template {
-    pub fn resolve_stmts(&self, attr: &AttrData) -> syn::Result<&[StmtTempl]> {
-        match attr.block().as_ref() {
-            Some(block) => self.get_stmts(block),
-            None => Ok(&self.stmts),
-        }
-    }
-
-    pub fn get_stmts(&self, block: &Ident) -> syn::Result<&[StmtTempl]> {
-        self.blocks
-            .get(block)
-            .map(|e| e.stmts.as_slice())
-            .ok_or_else(|| Error::new(block.span(), format!("cannot find block `{block}`")))
-    }
-}
-
-pub struct BlockContent {
-    #[allow(unused)]
-    pub templ: BlockTempl,
-    pub stmts: Vec<StmtTempl>,
-}
-
 pub enum StmtTempl {
     Scalar(Scalar),
     Scope(Scope),
 }
 
 pub enum Scalar {
-    Static(String,Index),
+    Static(Box<str>,u32),
     Expr(Box<Expr>,Delimiter),
     Render(RenderTempl),
     Use(UseTempl),
@@ -94,9 +62,9 @@ impl Scope {
 }
 
 pub struct SynVisitor {
-    layout: Option<SourceTempl>,
-    blocks: HashMap<Ident, BlockContent>,
-    statics: Vec<String>,
+    layout: Option<LayoutTempl>,
+    blocks: Vec<BlockContent>,
+    statics: Vec<Box<str>>,
     root: Vec<StmtTempl>,
 
     /// currently open scopes
@@ -114,13 +82,8 @@ impl SynVisitor {
         }
     }
 
-    pub fn finish(self) -> Template {
-        Template {
-            layout: self.layout,
-            blocks: self.blocks,
-            statics: self.statics,
-            stmts: self.root,
-        }
+    pub fn finish(self) -> File {
+        File::new(self.layout, self.blocks, self.statics, self.root)
     }
 
     fn stack_mut(&mut self) -> &mut Vec<StmtTempl> {
@@ -133,9 +96,9 @@ impl SynVisitor {
 
 impl Visitor<'_> for SynVisitor {
     fn visit_static(&mut self, source: &str) -> Result<()> {
-        let idx = Index::from(self.statics.len());
-        self.stack_mut().push(StmtTempl::Scalar(Scalar::Static(source.to_owned(),idx)));
-        self.statics.push(source.to_owned());
+        let idx = self.statics.len().try_into().unwrap();
+        self.stack_mut().push(StmtTempl::Scalar(Scalar::Static(source.into(), idx)));
+        self.statics.push(source.into());
         Ok(())
     }
 
@@ -148,13 +111,8 @@ impl Visitor<'_> for SynVisitor {
         match expr {
             // ===== layout =====
 
-            ExprTempl::Layout(LayoutTempl { root_token, source, .. }) |
-            ExprTempl::Extends(ExtendsTempl { root_token, source, .. }) => {
-                let dupl = self.layout.replace(if root_token.is_some() {
-                    SourceTempl::Root(source.value())
-                } else {
-                    SourceTempl::Path(source.value())
-                });
+            ExprTempl::Layout(layout) => {
+                let dupl = self.layout.replace(layout);
 
                 if dupl.is_some() {
                     error!("cannot have 2 `extends` or `layout`")
@@ -257,12 +215,12 @@ impl Visitor<'_> for SynVisitor {
                     self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(
                         RenderTempl {
                             render_token: <_>::default(),
-                            name: name.clone(),
+                            name,
                         },
                     )));
                 }
 
-                self.blocks.insert(name, BlockContent { templ, stmts });
+                self.blocks.push(BlockContent { templ, stmts });
             },
             ExprTempl::EndIf(_endif) => {
                 let if_scope = match self.scopes.pop() {

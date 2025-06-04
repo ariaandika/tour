@@ -1,7 +1,6 @@
-use std::cell::OnceCell;
 use syn::{punctuated::Punctuated, *};
 
-use crate::shared::{Reload, SourceTempl, error};
+use crate::{data::Metadata, shared::{error, Reload, SourceTempl}};
 
 // ===== AttrData =====
 
@@ -16,31 +15,9 @@ pub struct AttrData {
     source: SourceTempl,
     block: Option<Ident>,
     reload: Reload,
-
-    // ===== cache =====
-    source_str: OnceCell<String>,
 }
 
 impl AttrData {
-    /// Returns resolved source string.
-    ///
-    /// Resolved result is cached.
-    pub fn resolve_source(&self) -> Result<&str> {
-        match self.source_str.get() {
-            Some(init) => Ok(init),
-            None => {
-                let src = self.source.resolve_source()?.into_owned();
-                self.source_str.set(src).unwrap();
-                Ok(self.source_str.get().unwrap())
-            },
-        }
-    }
-
-    /// Return `Some` if template is not inlined.
-    pub fn resolve_path(&self) -> Option<String> {
-        self.source.resolve_path()
-    }
-
     /// Parse from derive macro attributes
     pub fn from_attr(attrs: &[Attribute]) -> Result<Self> {
         let Some(index) = attrs
@@ -74,7 +51,7 @@ impl AttrData {
                     Some(s) => {
                         error!("expected `debug`, `always`, `never`, or expression, found `{s}`")
                     }
-                    None => Reload::Expr(input.value),
+                    None => Reload::Expr(Box::new(input.value)),
                 });
 
                 if dupl.is_some() {
@@ -95,7 +72,7 @@ impl AttrData {
                 continue;
             }
 
-            let value = str_value(&input.value)?;
+            let value = str_value(&input.value)?.into_boxed_str();
             let dupl = source.replace(match &key[..] {
                 "path" => SourceTempl::Path(value),
                 "root" => SourceTempl::Root(value),
@@ -118,15 +95,20 @@ impl AttrData {
             Reload::Never
         });
 
-        Ok(Self { source, block, reload, source_str: OnceCell::new() })
+        Ok(Self { source, block, reload })
+    }
+
+    pub fn source(&self) -> &SourceTempl {
+        &self.source
     }
 
     pub fn reload(&self) -> &Reload {
         &self.reload
     }
 
-    pub fn block(&self) -> Option<&Ident> {
-        self.block.as_ref()
+    pub fn to_meta(&self) -> Metadata {
+        let path = self.source.resolve_path();
+        Metadata::new(path, self.reload.clone(), self.block.clone())
     }
 }
 
