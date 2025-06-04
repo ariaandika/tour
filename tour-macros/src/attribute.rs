@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::cell::OnceCell;
 use syn::{punctuated::Punctuated, *};
 
 use crate::shared::{Reload, SourceTempl, error};
@@ -7,26 +7,36 @@ use crate::shared::{Reload, SourceTempl, error};
 
 /// Derive macro type level attribute
 ///
-/// Contains:
+/// Accept input:
 ///
 /// - source: `#[path = ".." | root = ".." | source = ".."]`
-/// - block: `#[block = Body]`
+/// - block: `#[block = <Ident>]`
 /// - reload: `#[path = "debug" | "always" | "never" | <Expr>]`
 pub struct AttrData {
-    /// `#[path = ".." | root = ".." | source = ".."]`
     source: SourceTempl,
-    /// `#[block = Body]`
     block: Option<Ident>,
-    /// `#[path = "debug" | "always" | "never" | <Expr>]`
     reload: Reload,
+
+    // ===== cache =====
+    source_str: OnceCell<String>,
 }
 
 impl AttrData {
-    pub fn resolve_source(&self) -> Result<Cow<'_,str>> {
-        self.source.resolve_source()
+    /// Returns resolved source string.
+    ///
+    /// Resolved result is cached.
+    pub fn resolve_source(&self) -> Result<&str> {
+        match self.source_str.get() {
+            Some(init) => Ok(init),
+            None => {
+                let src = self.source.resolve_source()?.into_owned();
+                self.source_str.set(src).unwrap();
+                Ok(self.source_str.get().unwrap())
+            },
+        }
     }
 
-    /// Return `Some` if template is external and have path.
+    /// Return `Some` if template is not inlined.
     pub fn resolve_path(&self) -> Option<String> {
         self.source.resolve_path()
     }
@@ -108,7 +118,7 @@ impl AttrData {
             Reload::Never
         });
 
-        Ok(Self { source, block, reload })
+        Ok(Self { source, block, reload, source_str: OnceCell::new() })
     }
 
     pub fn reload(&self) -> &Reload {

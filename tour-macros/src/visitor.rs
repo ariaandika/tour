@@ -28,7 +28,7 @@ pub struct Template {
 
 impl Template {
     pub fn resolve_stmts(&self, attr: &AttrData) -> syn::Result<&[StmtTempl]> {
-        match attr.block.as_ref() {
+        match attr.block().as_ref() {
             Some(block) => self.get_stmts(block),
             None => Ok(&self.stmts),
         }

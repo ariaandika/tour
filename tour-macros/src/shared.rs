@@ -28,6 +28,11 @@ pub enum Reload {
     Expr(syn::Expr),
 }
 
+/// Represent a template source reference.
+///
+/// - `Path`: string path relative to `templates` directory
+/// - `Root`: string path relative to current directory
+/// - `Source`: the source string is inlined
 pub enum SourceTempl {
     Path(String),
     Root(String),
