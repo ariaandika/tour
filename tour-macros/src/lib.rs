@@ -8,6 +8,7 @@ mod shared;
 mod attribute;
 mod visitor;
 
+mod sizehint;
 mod codegen;
 mod template;
 

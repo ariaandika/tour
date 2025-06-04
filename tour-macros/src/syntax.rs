@@ -23,7 +23,7 @@ pub enum ExprTempl {
     /// `{{ render Body }}`
     Render(RenderTempl),
     /// `{{ username.get(1..6) }}`
-    Expr(Expr),
+    Expr(Box<Expr>),
     /// `{{ const NAME: &str = "deflect" }}`
     Const(ConstTempl),
     /// `{{ if admin }}`

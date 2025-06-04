@@ -32,5 +32,9 @@ pub trait Template {
         self.render_block_into(block, &mut buffer)?;
         Ok(buffer)
     }
+
+    fn size_hint(&self) -> (usize,Option<usize>) {
+        (0,None)
+    }
 }
 

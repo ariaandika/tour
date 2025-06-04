@@ -55,11 +55,12 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 
     // codegen
 
+    let (templ,body) = generate::template(attr.resolve_source()?.as_ref(), &attr)?;
+    let size_hint = generate::size_hint(&attr, &templ)?;
     let include_source = generate::include_str_source(path.as_deref());
-    let (Template { layout, statics, .. },body) = generate::template(attr.resolve_source()?.as_ref(), &attr)?;
-    let sources = generate::sources(path.as_deref(), &attr.reload, &statics);
+    let sources = generate::sources(path.as_deref(), &attr.reload, &templ.statics);
 
-    let layout = match layout {
+    let layout = match templ.layout {
         Some(layout) => {
             let layout = template_layout(layout, attr)?;
             quote! {
@@ -87,6 +88,8 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             }
 
             #layout
+
+            #size_hint
         }
 
         #[automatically_derived]
@@ -180,6 +183,19 @@ mod generate {
         };
         let body = codegen::generate(attr, &templ)?;
         Ok((templ,body))
+    }
+
+    pub fn size_hint(attr: &AttrData, templ: &Template) -> Result<TokenStream> {
+        let (min,max) = crate::sizehint::size_hint(attr, templ)?;
+        let max = match max {
+            Some(max) => quote! { Some(#max) },
+            None => quote! { None },
+        };
+        Ok(quote! {
+            fn size_hint(&self) -> (usize,Option<usize>) {
+                (#min,#max)
+            }
+        })
     }
 
     pub fn include_str_source(path: Option<&str>) -> Option<TokenStream> {

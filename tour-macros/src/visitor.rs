@@ -38,7 +38,7 @@ pub enum StmtTempl {
 
 pub enum Scalar {
     Static(String,Index),
-    Expr(Expr,Delimiter),
+    Expr(Box<Expr>,Delimiter),
     Render(RenderTempl),
     Use(UseTempl),
     Const(ConstTempl),
