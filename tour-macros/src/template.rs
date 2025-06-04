@@ -31,6 +31,9 @@ use crate::{
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let DeriveInput { attrs, vis: _, ident, generics, data } = input;
 
+    let destructor = genutil::destructor(&data);
+    let displays = genutil::field_display(&data)?;
+
     // ===== parse input =====
 
     let attr = AttrData::from_attr(&attrs)?;
@@ -40,9 +43,6 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let body = codegen::generate(&templ)?;
 
     // ===== codegen =====
-
-    let destructor = genutil::destructor(&ident, &data);
-    let displays = genutil::field_display(&data)?;
 
     let size_hint = generate::size_hint(&templ)?;
     let include_source = generate::include_str_source(&templ);
@@ -195,11 +195,11 @@ mod genutil {
     }
 
     /// destruct fields for convenient
-    pub fn destructor(ident: &Ident, data: &Data) -> TokenStream {
+    pub fn destructor(data: &Data) -> TokenStream {
         match data {
             Data::Struct(data) if matches!(data.fields.members().next(),Some(Member::Named(_))) => {
                 let fields = data.fields.iter().map(|f|f.ident.as_ref().expect("checked in if guard"));
-                quote! { let #ident { #(#fields),* } = self; }
+                quote! { let Self { #(#fields),* } = self; }
             }
             // named fields only
             _ => quote! {}
@@ -239,7 +239,7 @@ mod generate {
 
     pub fn include_str_source(templ: &Template) -> TokenStream {
         match templ.path() {
-            Some(path) => quote! { const _DEEZ: &str = #path; const _: &str = include_str!(#path); },
+            Some(path) => quote! { const _: &str = include_str!(#path); },
             None => quote! { },
         }
     }
