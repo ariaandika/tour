@@ -58,17 +58,18 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             let main_name = format_ident!("Main{ident}");
             let destructor = genutil::destructor(&data, &ident, quote! { &self.0 });
 
-            let (layouts, visitor) = template_layout(layout, attr)?;
+            let (layouts, visitor) = template_layout(layout, attr, &main_name)?;
             let fold = [main_name.clone()]
                 .into_iter()
                 .chain(visitor.names)
-                .fold(quote!(&self), |acc, n| quote!(#n(#acc)));
+                .fold(quote!(self), |acc, n| quote!(#n(#acc)));
 
             size_hint = sizehint::add_size_hint(size_hint, visitor.size_hint);
 
             let main = quote! {
                 struct #main_name<'a>(&'a #ident);
 
+                #[automatically_derived]
                 impl std::ops::Deref for #main_name<'_> {
                     type Target = #ident;
 
@@ -195,14 +196,14 @@ fn template_block(templ: &Template) -> Result<TokenStream> {
 }
 
 /// Returns `(layout,generated layout names)`
-fn template_layout(source: LayoutTempl, attr: AttrData) -> Result<(TokenStream, LayoutVisitor)> {
+fn template_layout(source: LayoutTempl, attr: AttrData, inner: &Ident) -> Result<(TokenStream, LayoutVisitor)> {
     let mut visitor = LayoutVisitor {
         names: vec![],
         size_hint: (0, None),
         counter: 0,
         attr,
     };
-    let layout = visitor.visit_layout(source)?;
+    let layout = visitor.visit_layout(source, inner)?;
 
     Ok((layout, visitor))
 }
@@ -229,7 +230,7 @@ impl LayoutVisitor {
         name
     }
 
-    fn visit_layout(&mut self, layout: LayoutTempl) -> Result<TokenStream> {
+    fn visit_layout(&mut self, layout: LayoutTempl, inner: &Ident) -> Result<TokenStream> {
         // ===== parse input =====
 
         let source = SourceTempl::from_layout(&layout);
@@ -255,15 +256,16 @@ impl LayoutVisitor {
 
         let name = self.generate_name(&templ);
         let nested_layout = match templ.into_layout() {
-            Some(layout) => self.visit_layout(layout)?,
+            Some(layout) => self.visit_layout(layout, &name)?,
             None => quote! { },
         };
 
         Ok(quote! {
-            struct #name<S>(S);
+            struct #name<'a>(#inner<'a>);
 
-            impl<S> std::ops::Deref for #name<S> {
-                type Target = S;
+            #[automatically_derived]
+            impl<'a> std::ops::Deref for #name<'a> {
+                type Target = #inner<'a>;
 
                 fn deref(&self) -> &Self::Target {
                     &self.0
@@ -271,7 +273,7 @@ impl LayoutVisitor {
             }
 
             #[automatically_derived]
-            impl<S: #TemplDisplay> #TemplDisplay for #name<S> {
+            impl #TemplDisplay for #name<'_> {
                 fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
                     #body
                 }
