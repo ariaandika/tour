@@ -69,6 +69,14 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             let main = quote! {
                 struct #main_name<'a>(&'a #ident);
 
+                impl std::ops::Deref for #main_name<'_> {
+                    type Target = #ident;
+
+                    fn deref(&self) -> &Self::Target {
+                        self.0
+                    }
+                }
+
                 #[automatically_derived]
                 impl #TemplDisplay for #main_name<'_> {
                     fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
@@ -253,6 +261,14 @@ impl LayoutVisitor {
 
         Ok(quote! {
             struct #name<S>(S);
+
+            impl<S> std::ops::Deref for #name<S> {
+                type Target = S;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.0
+                }
+            }
 
             #[automatically_derived]
             impl<S: #TemplDisplay> #TemplDisplay for #name<S> {
