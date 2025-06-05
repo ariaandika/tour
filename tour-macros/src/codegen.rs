@@ -20,6 +20,17 @@ pub fn generate(templ: &Template) -> Result<TokenStream> {
     Ok(visitor.tokens)
 }
 
+pub fn generate_block(templ: &Template, block: &Ident) -> Result<TokenStream> {
+    let shared = Shared {
+        templ,
+    };
+
+    let mut visitor = Visitor::default();
+    visitor.visit_stmts(&templ.get_block(block)?.stmts, &shared)?;
+
+    Ok(visitor.tokens)
+}
+
 struct Shared<'a> {
     templ: &'a Template,
 }

@@ -116,10 +116,13 @@ impl Template {
     pub fn reload(&self) -> &Reload {
         &self.meta.reload
     }
+
+    pub fn blocks(&self) -> &[BlockContent] {
+        &self.file.blocks
+    }
 }
 
 pub struct BlockContent {
-    #[allow(unused)]
     pub templ: BlockTempl,
     pub stmts: Vec<StmtTempl>,
 }

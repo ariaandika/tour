@@ -50,6 +50,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         Ok(())
     };
 
+    let blocks = template_block(&templ)?;
     let mut size_hint = sizehint::size_hint(&templ)?;
 
     let (main,expr) = match templ.into_layout() {
@@ -99,6 +100,11 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                     #expr
                 }
 
+                fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                    #blocks
+                    Err(::tour::Error::NoBlock)
+                }
+
                 #size_hint
             }
 
@@ -112,6 +118,32 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             #main
         };
     })
+}
+
+fn template_block(templ: &Template) -> Result<TokenStream> {
+    let mut main = quote! { };
+
+    for block in templ.blocks().iter().filter(|e|e.templ.pub_token.is_some()) {
+        // ===== codegen =====
+
+        let name = block.templ.name.to_string();
+        let body = codegen::generate_block(templ, &block.templ.name)?;
+        let sources = generate::sources(templ);
+        let body = quote! {
+            if block == #name {
+                #(#sources)*
+                #body
+                return Ok(())
+            }
+        };
+
+        // let size_hint = sizehint::size_hint(&templ)?;
+        // self.size_hint = sizehint::add_size_hint(self.size_hint, size_hint);
+
+        main.extend(body);
+    }
+
+    Ok(main)
 }
 
 /// Returns `(layout,generated layout names)`

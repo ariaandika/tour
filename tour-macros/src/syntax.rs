@@ -44,8 +44,7 @@ impl Parse for ExprTempl {
             _ if input.peek(kw::layout) => input.parse().map(Self::Layout),
             _ if input.peek(kw::extends) => input.parse().map(Self::Layout),
             _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
-            _ if input.peek(kw::block) => input.parse().map(Self::Block),
-            _ if input.peek(Token![static]) && input.peek2(kw::block) => input.parse().map(Self::Block),
+            _ if BlockTempl::peek(input) => input.parse().map(Self::Block),
             _ if input.peek(kw::endblock) => input.parse().map(Self::Endblock),
             _ if input.peek(kw::render) => input.parse().map(Self::Render),
             _ if input.peek(Token![const]) => input.parse().map(Self::Const),
@@ -70,6 +69,7 @@ pub struct LayoutTempl {
 
 /// `{{ block Body }}`
 pub struct BlockTempl {
+    pub pub_token: Option<Token![pub]>,
     pub static_token: Option<Token![static]>,
     #[allow(unused)]
     pub block_token: kw::block,
@@ -136,9 +136,19 @@ impl Parse for LayoutTempl {
     }
 }
 
+impl BlockTempl {
+    fn peek(input: ParseStream) -> bool {
+        (input.peek(Token![pub]) && input.peek2(Token![static]) && input.peek3(kw::block)) ||
+        (input.peek(Token![pub]) && input.peek2(kw::block)) ||
+        (input.peek(Token![static]) && input.peek2(kw::block)) ||
+        input.peek(kw::block)
+    }
+}
+
 impl Parse for BlockTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
+            pub_token: input.parse()?,
             static_token: input.parse()?,
             block_token: input.parse()?,
             name: input.parse()?,
