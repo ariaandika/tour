@@ -100,12 +100,11 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                     #expr
                 }
 
-                fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                    #blocks
-                    Err(::tour::Error::NoBlock)
+                fn size_hint(&self) -> (usize,Option<usize>) {
+                    #size_hint
                 }
 
-                #size_hint
+                #blocks
             }
 
             #[automatically_derived]
@@ -121,7 +120,9 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 }
 
 fn template_block(templ: &Template) -> Result<TokenStream> {
-    let mut main = quote! { };
+    let mut blocks = quote! { };
+    let mut contains = vec! { };
+    let mut size_hints = quote! { };
 
     for block in templ.blocks().iter().filter(|e|e.templ.pub_token.is_some()) {
         // ===== codegen =====
@@ -129,21 +130,41 @@ fn template_block(templ: &Template) -> Result<TokenStream> {
         let name = block.templ.name.to_string();
         let body = codegen::generate_block(templ, &block.templ.name)?;
         let sources = generate::sources(templ);
-        let body = quote! {
-            if block == #name {
+        blocks.extend(quote! {
+            #name => {
                 #(#sources)*
                 #body
-                return Ok(())
-            }
-        };
+                Ok(())
+            },
+        });
 
-        // let size_hint = sizehint::size_hint(&templ)?;
-        // self.size_hint = sizehint::add_size_hint(self.size_hint, size_hint);
+        let size_hint = genutil::size_hint(sizehint::size_hint_block(templ, &block.templ.name)?);
+        size_hints.extend(quote! {
+            #name => #size_hint,
+        });
 
-        main.extend(body);
+        contains.push(name);
     }
 
-    Ok(main)
+    Ok(quote! {
+        fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+            match block {
+                #blocks
+                _ => Err(::tour::Error::NoBlock),
+            }
+        }
+
+        fn contains_block(&self, block: &str) -> bool {
+            matches!(block, #(#contains)|*)
+        }
+
+        fn size_hint_block(&self, block: &str) -> (usize,Option<usize>) {
+            match block {
+                #size_hints
+                _ => (0,None)
+            }
+        }
+    })
 }
 
 /// Returns `(layout,generated layout names)`
@@ -247,9 +268,7 @@ mod genutil {
             None => quote! { None },
         };
         quote! {
-            fn size_hint(&self) -> (usize,Option<usize>) {
-                (#min,#max)
-            }
+            (#min,#max)
         }
     }
 }

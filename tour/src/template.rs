@@ -19,12 +19,24 @@ pub trait Template {
     }
 
     fn render_block(&self, block: &str) -> Result<String> {
-        let mut buffer = String::with_capacity(128);
+        if !self.contains_block(block) {
+            return Err(crate::Error::NoBlock)
+        }
+        let (min,max) = self.size_hint_block(block);
+        let mut buffer = String::with_capacity(max.unwrap_or(min));
         self.render_block_into(block, &mut buffer)?;
         Ok(buffer)
     }
 
+    fn contains_block(&self, _block: &str) -> bool {
+        false
+    }
+
     fn size_hint(&self) -> (usize,Option<usize>) {
+        (0,None)
+    }
+
+    fn size_hint_block(&self, _block: &str) -> (usize,Option<usize>) {
         (0,None)
     }
 }

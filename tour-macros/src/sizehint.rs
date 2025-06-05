@@ -12,6 +12,10 @@ pub fn size_hint(templ: &Template) -> Result<(usize, Option<usize>)> {
     Visitor { templ }.visit_stmts(templ.stmts()?)
 }
 
+pub fn size_hint_block(templ: &Template, block: &Ident) -> Result<(usize, Option<usize>)> {
+    Visitor { templ }.visit_stmts(&templ.get_block(block)?.stmts)
+}
+
 struct Visitor<'a> {
     templ: &'a Template,
 }
