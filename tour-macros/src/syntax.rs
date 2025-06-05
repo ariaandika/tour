@@ -10,7 +10,8 @@ use syn::{
 
 /// template expressions
 pub enum ExprTempl {
-    /// `{{ layout "layout.html" }}`, `{{ extends "layout.html" }}`
+    /// `{{ layout "layout.html" }}`
+    /// `{{ extends "layout.html" }}`
     Layout(LayoutTempl),
     /// `{{ yield }}`
     Yield(Token![yield]),
@@ -19,6 +20,7 @@ pub enum ExprTempl {
     /// `{{ endblock }}`
     Endblock(kw::endblock),
     /// `{{ render Body }}`
+    /// `{{ render "layout/navbar.html" }}`
     Render(RenderTempl),
     /// `{{ username.get(1..6) }}`
     Expr(Box<Expr>),
@@ -35,6 +37,7 @@ pub enum ExprTempl {
     /// `{{ endfor }}`
     EndFor(kw::endfor),
     /// `{{ use crate::TimeDisplay }}`
+    /// `{{ use "components/prelude.html" }}`
     Use(UseTempl),
 }
 
@@ -77,10 +80,16 @@ pub struct BlockTempl {
 }
 
 /// `{{ render Body }}`
+/// `{{ render "layout/navbar.html" }}`
 pub struct RenderTempl {
     #[allow(dead_code)]
     pub render_token: kw::render,
-    pub name: Ident,
+    pub value: RenderValue,
+}
+
+pub enum RenderValue {
+    Path(Path),
+    LitStr(LitStr),
 }
 
 /// `{{ const NAME: &str = "deflect" }}`
@@ -115,11 +124,16 @@ pub struct ForTempl {
 }
 
 /// `{{ use crate::TimeDisplay }}`
+/// `{{ use "components/prelude.html" }}`
 pub struct UseTempl {
     pub use_token: Token![use],
-    pub leading_colon: Option<Token![::]>,
-    pub tree: UseTree,
+    pub value: UseValue,
     pub semi_token: Option<Token![;]>,
+}
+
+pub enum UseValue {
+    Tree(Option<Token![::]>,UseTree),
+    LitStr(LitStr),
 }
 
 impl Parse for LayoutTempl {
@@ -160,7 +174,10 @@ impl Parse for RenderTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             render_token: input.parse()?,
-            name: input.parse()?,
+            value: match () {
+                _ if input.peek(LitStr) => input.parse().map(RenderValue::LitStr)?,
+                _ => input.parse().map(RenderValue::Path)?,
+            },
         })
     }
 }
@@ -216,8 +233,10 @@ impl Parse for UseTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             use_token: input.parse()?,
-            leading_colon: input.parse()?,
-            tree: input.parse()?,
+            value: match () {
+                _ if input.peek(LitStr) => input.parse().map(UseValue::LitStr)?,
+                _ => UseValue::Tree(input.parse()?, input.parse()?),
+            },
             semi_token: input.parse()?,
         })
     }

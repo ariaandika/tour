@@ -2,7 +2,7 @@ use syn::*;
 
 use crate::{
     data::Template,
-    syntax::RenderTempl,
+    syntax::{RenderTempl, RenderValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
 
@@ -34,9 +34,10 @@ impl Visitor<'_> {
         let size = match stmt {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static(source, _) => (source.len(), Some(source.len())),
-                Scalar::Render(RenderTempl { name, .. }) => {
-                    self.visit_stmts(&self.templ.get_block(name)?.stmts)?
-                }
+                Scalar::Render(RenderTempl { value, .. }) => match value {
+                    RenderValue::Path(path) => self.visit_stmts(&self.templ.get_block(path.require_ident()?)?.stmts)?,
+                    RenderValue::LitStr(_lit_str) => todo!(),
+                },
                 Scalar::Yield | Scalar::Expr(_, _) | Scalar::Use(_) | Scalar::Const(_) => (0, None),
             },
             StmtTempl::Scope(scope) => self.visit_scope(scope)?,

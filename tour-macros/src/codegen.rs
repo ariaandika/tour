@@ -5,7 +5,7 @@ use syn::*;
 use crate::{
     data::Template,
     shared::{self, TemplDisplay},
-    syntax::RenderTempl,
+    syntax::{RenderTempl, RenderValue, UseValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
 
@@ -73,8 +73,9 @@ impl Visitor {
                         #TemplDisplay::display(&self.0, &mut *writer)?;
                     });
                 },
-                Scalar::Render(RenderTempl { name, .. }) => {
-                    self.visit_stmts(&shared.templ.get_block(name)?.stmts, shared)?
+                Scalar::Render(RenderTempl { value, .. }) => match value {
+                    RenderValue::Path(path) => self.visit_stmts(&shared.templ.get_block(path.require_ident()?)?.stmts, shared)?,
+                    RenderValue::LitStr(_lit_str) => todo!(),
                 },
                 Scalar::Expr(expr, delim) => {
                     let display = shared::display(*delim, expr);
@@ -83,11 +84,14 @@ impl Visitor {
                         #TemplDisplay::display(#display, #writer)?;
                     });
                 },
-                Scalar::Use(templ) => {
-                    templ.use_token.to_tokens(&mut self.tokens);
-                    templ.leading_colon.to_tokens(&mut self.tokens);
-                    templ.tree.to_tokens(&mut self.tokens);
-                    templ.semi_token.unwrap_or_default().to_tokens(&mut self.tokens);
+                Scalar::Use(templ) => match &templ.value {
+                    UseValue::Tree(leading_colon, tree) => {
+                        templ.use_token.to_tokens(&mut self.tokens);
+                        leading_colon.to_tokens(&mut self.tokens);
+                        tree.to_tokens(&mut self.tokens);
+                        templ.semi_token.unwrap_or_default().to_tokens(&mut self.tokens);
+                    },
+                    UseValue::LitStr(_lit_str) => todo!(),
                 },
                 Scalar::Const(templ) => {
                     templ.const_token.to_tokens(&mut self.tokens);

@@ -215,7 +215,7 @@ impl Visitor<'_> for SynVisitor {
                     self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(
                         RenderTempl {
                             render_token: <_>::default(),
-                            name,
+                            value: RenderValue::Path(name.into()),
                         },
                     )));
                 }
