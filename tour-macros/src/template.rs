@@ -146,24 +146,43 @@ fn template_block(templ: &Template) -> Result<TokenStream> {
         contains.push(name);
     }
 
+    let blocks = match blocks.is_empty() {
+        true => quote! { },
+        false => quote! {
+            fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                match block {
+                    #blocks
+                    _ => Err(::tour::Error::NoBlock),
+                }
+            }
+        }
+    };
+
+    let contains = match contains.is_empty() {
+        true => quote! { },
+        false => quote! {
+            fn contains_block(&self, block: &str) -> bool {
+                matches!(block, #(#contains)|*)
+            }
+        }
+    };
+
+    let size_hint = match size_hints.is_empty() {
+        true => quote! { },
+        false => quote! {
+            fn size_hint_block(&self, block: &str) -> (usize,Option<usize>) {
+                match block {
+                    #size_hints
+                    _ => (0,None)
+                }
+            }
+        }
+    };
+
     Ok(quote! {
-        fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-            match block {
-                #blocks
-                _ => Err(::tour::Error::NoBlock),
-            }
-        }
-
-        fn contains_block(&self, block: &str) -> bool {
-            matches!(block, #(#contains)|*)
-        }
-
-        fn size_hint_block(&self, block: &str) -> (usize,Option<usize>) {
-            match block {
-                #size_hints
-                _ => (0,None)
-            }
-        }
+        #blocks
+        #contains
+        #size_hint
     })
 }
 
