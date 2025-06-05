@@ -4,19 +4,19 @@ struct MyDisplay;
 
 impl tour::TemplDisplay for MyDisplay {
     fn display(&self, f: &mut impl tour::TemplWrite) -> tour::Result<()> {
-        f.write_str("kernel")
+        f.write_str("TemplDisplay trait")
     }
 }
 
 impl std::fmt::Display for MyDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("beans")
+        f.write_str("Display trait")
     }
 }
 
 impl std::fmt::Debug for MyDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("ultra beans")
+        f.write_str("Debug trait")
     }
 }
 
@@ -28,8 +28,9 @@ fn render() {
         input: MyDisplay,
     }
 
-    let esc = Displayed { input: MyDisplay }.render().unwrap();
-    assert_eq!(&esc[..],"kernel");
+    let templ = Displayed { input: MyDisplay };
+
+    assert_eq!(templ.render().unwrap(), "TemplDisplay trait");
 }
 
 #[test]
@@ -40,8 +41,9 @@ fn render_std_display_delimiter() {
         input: MyDisplay,
     }
 
-    let esc = Displayed { input: MyDisplay }.render().unwrap();
-    assert_eq!(&esc[..],"beans");
+    let templ = Displayed { input: MyDisplay };
+
+    assert_eq!(templ.render().unwrap(), "Display trait");
 }
 
 #[test]
@@ -52,8 +54,9 @@ fn render_std_debug() {
         input: MyDisplay,
     }
 
-    let esc = Displayed { input: MyDisplay }.render().unwrap();
-    assert_eq!(&esc[..],"ultra beans");
+    let templ = Displayed { input: MyDisplay };
+
+    assert_eq!(templ.render().unwrap(),"Debug trait");
 }
 
 #[test]
@@ -64,8 +67,9 @@ fn escape() {
         input: &'static str,
     }
 
-    let esc = Escape { input: "<script></script>" }.render().unwrap();
-    assert_eq!(&esc[..],"&ltscript&gt&lt/script&gt");
+    let templ = Escape { input: "<script></script>", };
+
+    assert_eq!(templ.render().unwrap(), "&ltscript&gt&lt/script&gt");
 }
 
 #[test]
@@ -76,8 +80,9 @@ fn escape_opt_out() {
         input: &'static str,
     }
 
-    let esc = EscapeOptOut { input: "<script></script>" }.render().unwrap();
-    assert_eq!(&esc[..],"<script></script>");
+    let templ = EscapeOptOut { input: "<script></script>" };
+
+    assert_eq!(templ.render().unwrap(), "<script></script>");
 }
 
 #[test]
@@ -88,11 +93,16 @@ fn conditional() {
         cond: bool
     }
 
-    let cond = Cond { cond: true }.render().unwrap();
-    assert_eq!(&cond[..],"<div>Ok</div>");
+    let t1 = Cond { cond: false };
+    assert_eq!(t1.render().unwrap(), "<div></div>");
 
-    let cond = Cond { cond: false }.render().unwrap();
-    assert_eq!(&cond[..],"<div></div>");
+    let t2 = Cond { cond: true };
+    assert_eq!(t2.render().unwrap(), "<div>Ok</div>");
+
+    let (min, Some(max)) = t1.size_hint() else { unreachable!() };
+
+    assert_eq!(min, t1.render().unwrap().len());
+    assert_eq!(max, t2.render().unwrap().len());
 }
 
 #[test]
@@ -103,31 +113,39 @@ fn conditional_2_branch() {
         cond: bool
     }
 
-    let cond = Cond { cond: true }.render().unwrap();
-    assert_eq!(&cond[..],"<div>Some</div>");
+    let t1 = Cond { cond: false };
+    assert_eq!(t1.render().unwrap(), "<div>None</div>");
 
-    let cond = Cond { cond: false }.render().unwrap();
-    assert_eq!(&cond[..],"<div>None</div>");
+    let t2 = Cond { cond: true };
+    assert_eq!(t2.render().unwrap(), "<div>Some</div>");
+
+    let (min, Some(max)) = t1.size_hint() else { unreachable!() };
+
+    assert_eq!(min, t1.render().unwrap().len());
+    assert_eq!(max, t2.render().unwrap().len());
 }
 
 #[test]
 fn conditional_3_branch() {
     #[derive(Template)]
-    #[template(source =
-        "<div>{{ if *n == 1 }}One{{ else if *n == 2 }}Two{{ else }}None{{ endif }}</div>"
-    )]
+    #[template(source = "{{ if *n == 1 }}One{{ else if *n == 2 }}Two{{ else }}None{{ endif }}")]
     struct Cond {
-        n: i32
+        n: i32,
     }
 
-    let cond = Cond { n: 1 }.render().unwrap();
-    assert_eq!(&cond[..],"<div>One</div>");
+    let t1 = Cond { n: 1 };
+    assert_eq!(t1.render().unwrap(), "One");
 
-    let cond = Cond { n: 2 }.render().unwrap();
-    assert_eq!(&cond[..],"<div>Two</div>");
+    let t2 = Cond { n: 2 };
+    assert_eq!(t2.render().unwrap(), "Two");
 
-    let cond = Cond { n: 3 }.render().unwrap();
-    assert_eq!(&cond[..],"<div>None</div>");
+    let t3 = Cond { n: 3 };
+    assert_eq!(t3.render().unwrap(), "None");
+
+    let (min, Some(max)) = t1.size_hint() else { unreachable!() };
+
+    assert_eq!(min, t1.render().unwrap().len());
+    assert_eq!(max, t3.render().unwrap().len());
 }
 
 #[test]
@@ -138,8 +156,20 @@ fn iteration() {
         it: Vec<&'static str>,
     }
 
-    let it = It { it: vec!["A","B","C"] }.render().unwrap();
-    assert_eq!(&it[..],"<div>the: A the: B the: C </div>");
+    let templ = It { it: vec!["A","B","C"] };
+    assert_eq!(templ.render().unwrap(),"<div>the: A the: B the: C </div>");
+
+    //
+    // currently, size_hint will only guess max size_hint for one item iteration
+    //
+
+    let templ = It { it: vec!["A"] };
+    let (min, Some(max)) = templ.size_hint() else { unreachable!() };
+
+    let dynamic_size = "A".len();
+
+    assert_eq!(min, "<div></div>".len());
+    assert_eq!(max, templ.render().unwrap().len() - dynamic_size);
 }
 
 #[test]
@@ -150,20 +180,25 @@ fn iteration_2_branch() {
         it: Vec<&'static str>,
     }
 
-    let it = It { it: vec!["A","B","C"] }.render().unwrap();
-    assert_eq!(&it[..],"<div>the: A the: B the: C </div>");
+    let t1 = It { it: vec!["A","B","C"] };
+    assert_eq!(t1.render().unwrap(), "<div>the: A the: B the: C </div>");
 
-    let it = It { it: vec![] }.render().unwrap();
-    assert_eq!(&it[..],"<div>None</div>");
+    let t2 = It { it: vec![] };
+    assert_eq!(t2.render().unwrap(), "<div>None</div>");
+
+    let (min, Some(_max)) = t1.size_hint() else { unreachable!() };
+
+    assert_eq!(min, t2.render().unwrap().len());
 }
 
 #[test]
 fn using() {
     #[derive(Template)]
-    #[template(source = "{{ use std::io::{Read, Write, prelude::*} }}")]
+    #[template(source = "{{ use std::iter::once }}{? once(1).next() ?}")]
     struct Using;
 
-    let u = Using.render().unwrap();
-    assert_eq!(&u[..],"");
+    let templ = Using;
+
+    assert_eq!(templ.render().unwrap(),"Some(1)");
 }
 
