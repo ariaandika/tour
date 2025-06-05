@@ -30,6 +30,27 @@ pub enum Reload {
     Expr(Box<syn::Expr>),
 }
 
+impl Default for Reload {
+    fn default() -> Self {
+        if cfg!(feature = "dev-reload") {
+            Reload::Debug
+        } else {
+            Reload::Never
+        }
+    }
+}
+
+impl Reload {
+    pub fn as_bool(&self) -> std::result::Result<bool,&syn::Expr> {
+        match self {
+            Reload::Debug => Ok(cfg!(debug_assertions)),
+            Reload::Always => Ok(true),
+            Reload::Never => Ok(false),
+            Reload::Expr(expr) => Err(expr),
+        }
+    }
+}
+
 /// Template reference.
 ///
 /// Used in derive attribute (`#[path = ".."]`) or layout declaration (`{{ extends ".." }}`).

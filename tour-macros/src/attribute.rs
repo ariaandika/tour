@@ -1,6 +1,6 @@
 use syn::{punctuated::Punctuated, *};
 
-use crate::shared::{Reload, SourceTempl, error};
+use crate::shared::{error, Reload, SourceTempl};
 
 // ===== AttrData =====
 
@@ -20,82 +20,21 @@ pub struct AttrData {
 impl AttrData {
     /// Parse from derive macro attributes
     pub fn from_attr(attrs: &[Attribute]) -> Result<Self> {
-        let Some(index) = attrs
-            .iter()
-            .position(|attr| attr.meta.path().is_ident("template"))
-        else {
-            error!("`template` attribute missing")
-        };
+        let mut visitor = Visitor::default();
 
-        let attr = attrs[index].clone();
+        for attr in attrs.iter().filter(|e| e.meta.path().is_ident("template")) {
+            let attrs = attr.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
 
-        let Meta::List(input) = attr.meta else {
-            error!("expected `#[template(/* .. */)]`")
-        };
-
-        let input =
-            input.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
-
-        let mut source = None;
-        let mut block = None;
-        let mut reload = None;
-
-        for input in input {
-            let key = input.path.require_ident()?.to_string();
-
-            if key == "reload" {
-                let dupl = reload.replace(match may_str(&input.value).as_deref() {
-                    Some("debug") => Reload::Debug,
-                    Some("always") => Reload::Always,
-                    Some("never") => Reload::Never,
-                    Some(s) => {
-                        error!("expected `debug`, `always`, `never`, or expression, found `{s}`")
-                    }
-                    None => Reload::Expr(Box::new(input.value)),
-                });
-
-                if dupl.is_some() {
-                    error!("duplicate key `reload`")
-                }
-
-                continue;
-            }
-
-            if key == "block" {
-                let name = ident_value(&input.value)?;
-                let dupl = block.replace(name);
-
-                if dupl.is_some() {
-                    error!("duplicate key `block`")
-                }
-
-                continue;
-            }
-
-            let path = str_value(&input.value)?.into_boxed_str();
-            let dupl = source.replace(match &key[..] {
-                "path" => SourceTempl::Path(path),
-                "root" => SourceTempl::Root(path),
-                "source" => SourceTempl::Source(path),
-                _ => error!("expected one of `path`, `root`, `source`, or `reload`; found `{key}`"),
-            });
-
-            if dupl.is_some() {
-                error!("duplicate key `path`, `root`, or `source`")
+            for MetaNameValue { path, value, .. } in attrs {
+                visitor.visit_pair(path.require_ident()?.clone(), value)?;
             }
         }
 
-        let Some(source) = source else {
-            error!("expected one of `path`, `root`, `source`, or `reload`")
+        let Visitor { source: Some(source), block, reload } = visitor else {
+            error!("one of `path`, `root`, or `source` is required")
         };
 
-        let reload = reload.unwrap_or(if cfg!(feature = "dev-reload") {
-            Reload::Debug
-        } else {
-            Reload::Never
-        });
-
-        Ok(Self { source, block, reload })
+        Ok(Self { source, block, reload: reload.unwrap_or_default() })
     }
 
     pub fn source(&self) -> &SourceTempl {
@@ -111,13 +50,69 @@ impl AttrData {
     }
 }
 
-impl Reload {
-    pub fn as_bool(&self) -> std::result::Result<bool,&Expr> {
-        match self {
-            Reload::Debug => Ok(cfg!(debug_assertions)),
-            Reload::Always => Ok(true),
-            Reload::Never => Ok(false),
-            Reload::Expr(expr) => Err(expr),
+// ===== visitor =====
+
+#[derive(Default)]
+struct Visitor {
+    source: Option<SourceTempl>,
+    block: Option<Ident>,
+    reload: Option<Reload>,
+}
+
+impl Visitor {
+    fn visit_pair(&mut self, name: Ident, value: Expr) -> Result<()> {
+        match () {
+            _ if name.eq("path") => self.visit_path(name, value),
+            _ if name.eq("root") => self.visit_root(name, value),
+            _ if name.eq("source") => self.visit_source(name, value),
+            _ if name.eq("block") => self.visit_block(name, value),
+            _ if name.eq("reload") => self.visit_reload(name, value),
+            _ => error!(name, "no such key"),
+        }
+    }
+
+    fn visit_path(&mut self, name: Ident, value: Expr) -> Result<()> {
+        match self.source.replace(SourceTempl::Path(str_value(&value)?.into_boxed_str())) {
+            Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
+            None => Ok(()),
+        }
+    }
+
+    fn visit_root(&mut self, name: Ident, value: Expr) -> Result<()> {
+        match self.source.replace(SourceTempl::Root(str_value(&value)?.into_boxed_str())) {
+            Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
+            None => Ok(()),
+        }
+    }
+
+    fn visit_source(&mut self, name: Ident, value: Expr) -> Result<()> {
+        match self.source.replace(SourceTempl::Source(str_value(&value)?.into_boxed_str())) {
+            Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
+            None => Ok(()),
+        }
+    }
+
+    fn visit_block(&mut self, name: Ident, value: Expr) -> Result<()> {
+        match self.block.replace(ident_value(&value)?) {
+            Some(_) => error!(name, "duplicate `block` key"),
+            None => Ok(()),
+        }
+    }
+
+    fn visit_reload(&mut self, name: Ident, value: Expr) -> Result<()> {
+        let value = match may_str(&value).as_deref() {
+            Some("debug") => Reload::Debug,
+            Some("always") => Reload::Always,
+            Some("never") => Reload::Never,
+            Some(s) => error! {
+                "expected `debug`, `always`, `never`, or expression, found `{s}`"
+            },
+            None => Reload::Expr(Box::new(value)),
+        };
+
+        match self.reload.replace(value) {
+            Some(_) => error!(name, "duplicate `reload` key"),
+            None => Ok(()),
         }
     }
 }
@@ -144,5 +139,4 @@ fn may_str(value: &Expr) -> Option<String> {
         _ => None,
     }
 }
-
 
