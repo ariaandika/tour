@@ -2,7 +2,9 @@
 //!
 //! Tour Template is a compile-time templating library with support for runtime reload.
 //!
-//! # Example
+//! # Runtime Reload
+//!
+//! Given type with [`Template`] derive macro:
 //!
 //! ```ignore
 //! // main.rs
@@ -18,7 +20,8 @@
 //! println!("{result}");
 //! ```
 //!
-//! Templates are searched from `templates` directory from project root by default.
+//! Templates are searched from `templates` directory from project root by default, so above
+//! example will search for `templates/index.html`.
 //!
 //! ```html
 //! <!-- templates/index.html -->
@@ -37,6 +40,8 @@
 //!
 //! This is still better than require to recompile on every small changes. In practice, quick
 //! changes iteration is used for style changes.
+//!
+//! [`Template`]: tour_macros::Template
 mod template;
 mod write;
 mod display;

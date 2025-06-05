@@ -34,7 +34,7 @@ impl Metadata {
         Self {
             path: crate::shared::SourceTempl::from_layout(&layout).resolve_path(),
             reload,
-            block: None, // TODO: allows select block for a layout
+            block: None, // allows select block for a layout ?
         }
     }
 }
