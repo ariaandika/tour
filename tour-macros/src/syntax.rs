@@ -66,7 +66,6 @@ impl Parse for ExprTempl {
 pub struct LayoutTempl {
     #[allow(dead_code)]
     pub layout_token: kw::layout,
-    pub root_token: Option<kw::root>,
     pub path: LitStr,
 }
 
@@ -144,7 +143,6 @@ impl Parse for LayoutTempl {
                 _ if input.peek(kw::extends) => kw::layout(input.parse::<kw::extends>()?.span),
                 _ => unreachable!()
             },
-            root_token: input.parse()?,
             path: input.parse()?,
         })
     }
@@ -245,7 +243,6 @@ impl Parse for UseTempl {
 mod kw {
     syn::custom_keyword!(layout);
     syn::custom_keyword!(extends);
-    syn::custom_keyword!(root);
     syn::custom_keyword!(block);
     syn::custom_keyword!(render);
     syn::custom_keyword!(endblock);
