@@ -7,7 +7,7 @@ use crate::{
     attribute::AttrData,
     codegen,
     data::{File, Metadata, Template},
-    shared::{SourceTempl, TemplDisplay, TemplWrite},
+    shared::{Source, TemplDisplay, TemplWrite},
     sizehint::{self, SizeHint},
     syntax::LayoutTempl,
 };
@@ -17,7 +17,7 @@ use crate::{
 /// Inputs:
 ///
 /// - [`AttrData`]: derive macro attribute
-/// - [`SourceTempl`]: layout declaration
+/// - [`Source`]: layout declaration
 /// - [`Template`]: template source code
 ///
 /// all function should accept the whole either input type
@@ -33,7 +33,6 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     // ===== parse input =====
 
     let attr = AttrData::from_attr(&attrs)?;
-    attr.source().validate(&ident)?;
     let meta = Metadata::from_attr(&attr);
     let file = File::from_source(attr.source())?;
     let templ = Template::new(meta, file);
@@ -233,9 +232,8 @@ impl LayoutVisitor {
     fn visit_layout(&mut self, layout: LayoutTempl, inner: &Ident) -> Result<TokenStream> {
         // ===== parse input =====
 
-        let source = SourceTempl::from_layout(&layout);
-        source.validate(&layout.path)?;
-        let meta = Metadata::from_layout(layout, self.attr.reload().clone());
+        let source = Source::from_layout(&layout, self.attr.dir())?;
+        let meta = Metadata::from_layout(&layout, self.attr.reload().clone(), self.attr.dir())?;
         let file = File::from_source(&source)?;
         let templ = Template::new(meta, file);
 

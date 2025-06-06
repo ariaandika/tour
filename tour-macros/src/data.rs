@@ -3,7 +3,7 @@ use tour_core::{ParseError, Parser};
 
 use crate::{
     attribute::AttrData,
-    shared::{Reload, SourceTempl, error},
+    shared::{Reload, Source, error},
     syntax::{BlockTempl, LayoutTempl},
     visitor::{StmtTempl, SynVisitor},
 };
@@ -16,26 +16,21 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    /// Create new [`Metadata`].
-    pub fn new(path: Option<Box<str>>, reload: Reload, block: Option<Ident>) -> Self {
+    pub fn from_attr(attr: &AttrData) -> Metadata {
         Self {
-            path,
-            reload,
-            block,
+            path: attr.source().clone_path(),
+            reload: attr.reload().clone(),
+            block: attr.block().cloned(),
         }
     }
 
-    pub fn from_attr(attr: &AttrData) -> Metadata {
-        let path = attr.source().resolve_path();
-        Metadata::new(path, attr.reload().clone(), attr.block().cloned())
-    }
-
-    pub fn from_layout(layout: LayoutTempl, reload: Reload) -> Metadata {
-        Self {
-            path: crate::shared::SourceTempl::from_layout(&layout).resolve_path(),
+    pub fn from_layout(layout: &LayoutTempl, reload: Reload, cwd: Option<Box<str>>) -> Result<Metadata> {
+        let source = Source::from_layout(layout, cwd)?;
+        Ok(Self {
+            path: source.clone_path(),
             reload,
             block: None, // allows select block for a layout ?
-        }
+        })
     }
 }
 
@@ -63,7 +58,7 @@ impl File {
         }
     }
 
-    pub fn from_source(source: &SourceTempl) -> Result<File> {
+    pub fn from_source(source: &Source) -> Result<File> {
         match Parser::new(source.resolve_source()?.as_ref(), SynVisitor::new()).parse() {
             Ok(ok) => Ok(ok.finish()),
             Err(ParseError::Generic(err)) => error!("{err}"),

@@ -1,6 +1,6 @@
 use syn::{punctuated::Punctuated, *};
 
-use crate::shared::{error, Reload, SourceTempl};
+use crate::shared::{Reload, Source, error};
 
 // ===== AttrData =====
 
@@ -12,7 +12,7 @@ use crate::shared::{error, Reload, SourceTempl};
 /// - block: `#[block = <Ident>]`
 /// - reload: `#[path = "debug" | "always" | "never" | <Expr>]`
 pub struct AttrData {
-    source: SourceTempl,
+    source: Source,
     block: Option<Ident>,
     reload: Reload,
 }
@@ -37,8 +37,14 @@ impl AttrData {
         Ok(Self { source, block, reload: reload.unwrap_or_default() })
     }
 
-    pub fn source(&self) -> &SourceTempl {
+    pub fn source(&self) -> &Source {
         &self.source
+    }
+
+    pub fn dir(&self) -> Option<Box<str>> {
+        std::path::Path::new(self.source.path()?)
+            .parent()
+            .map(|e| e.to_string_lossy().into_owned().into_boxed_str())
     }
 
     pub fn reload(&self) -> &Reload {
@@ -54,7 +60,7 @@ impl AttrData {
 
 #[derive(Default)]
 struct Visitor {
-    source: Option<SourceTempl>,
+    source: Option<Source>,
     block: Option<Ident>,
     reload: Option<Reload>,
 }
@@ -72,21 +78,21 @@ impl Visitor {
     }
 
     fn visit_path(&mut self, name: Ident, value: Expr) -> Result<()> {
-        match self.source.replace(SourceTempl::Path(str_value(&value)?.into_boxed_str())) {
+        match self.source.replace(Source::new_path(str_value(&value)?.into_boxed_str(), None)?) {
             Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
             None => Ok(()),
         }
     }
 
     fn visit_root(&mut self, name: Ident, value: Expr) -> Result<()> {
-        match self.source.replace(SourceTempl::Root(str_value(&value)?.into_boxed_str())) {
+        match self.source.replace(Source::new_root(str_value(&value)?.into_boxed_str(), None)?) {
             Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
             None => Ok(()),
         }
     }
 
     fn visit_source(&mut self, name: Ident, value: Expr) -> Result<()> {
-        match self.source.replace(SourceTempl::Source(str_value(&value)?.into_boxed_str())) {
+        match self.source.replace(Source::inline(str_value(&value)?.into_boxed_str())) {
             Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
             None => Ok(()),
         }

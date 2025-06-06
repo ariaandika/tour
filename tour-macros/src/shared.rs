@@ -1,7 +1,9 @@
-use proc_macro2::TokenStream;
-use quote::quote;
-use std::borrow::Cow;
-use tour_core::Delimiter;
+use syn::Result;
+use std::path::{Path, PathBuf};
+
+use crate::syntax::LayoutTempl;
+
+// ===== Namespace =====
 
 /// `ToTokens` for public name
 pub struct TemplDisplay;
@@ -20,6 +22,8 @@ impl quote::ToTokens for TemplWrite {
         quote::quote! {::tour::TemplWrite}.to_tokens(tokens);
     }
 }
+
+// ===== Reload =====
 
 /// Runtime template reload behavior.
 #[derive(Clone)]
@@ -51,107 +55,144 @@ impl Reload {
     }
 }
 
+// ===== Source =====
+
 /// Template reference.
-///
-/// Used in derive attribute (`#[path = ".."]`) or layout declaration (`{{ extends ".." }}`).
-///
-/// - `Path`: path relative to `templates` directory
-/// - `Root`: path relative to current directory
-/// - `Source`: the source string is inlined
-pub enum SourceTempl {
-    Path(Box<str>),
-    Root(Box<str>),
-    Source(Box<str>),
+#[derive(Debug)]
+pub struct Source {
+    path: Option<Box<str>>,
+    source: Option<Box<str>>,
 }
 
-impl SourceTempl {
-    /// Create [`SourceTempl`] from layout declaration.
-    ///
-    /// Currently, there is no way to define layout as inline, so calling
-    /// returned [`SourceTempl::shallow_clone`] will never panic.
-    pub fn from_layout(layout: &LayoutTempl) -> SourceTempl {
+impl Source {
+    /// Create [`Source`] from layout declaration.
+    pub fn from_layout(layout: &LayoutTempl, cwd: Option<Box<str>>) -> Result<Source> {
         let path = layout.path.value().into_boxed_str();
-        if layout.root_token.is_some() {
-            SourceTempl::Root(path)
+        if
+            Path::new(path.as_ref()).is_relative() ||
+            layout.root_token.is_some()
+        {
+            Self::new_root(path, cwd)
         } else {
-            SourceTempl::Path(path)
+            Self::new_path(path, cwd)
         }
     }
 
-    pub fn validate(&self, span: &impl syn::spanned::Spanned) -> syn::Result<()> {
-        if let Some(path) = self.resolve_path() {
-            match std::fs::exists(path.as_ref()) {
-                Ok(true) => (),
-                Ok(false) => error!(span, "cannot find file `{path}`"),
-                Err(err) => error!(span, "{err}",),
+    pub fn new_path(path: Box<str>, cwd: Option<Box<str>>) -> Result<Self> {
+        let mut cwd = match cwd {
+            None => std::env::current_dir().expect("failed to get current directory"),
+            Some(cwd) => cwd.as_ref().into(),
+        };
+        cwd.push("templates");
+        cwd.push(path.as_ref());
+        let path = normalize_path(cwd.as_path())
+            .to_string_lossy()
+            .into_owned()
+            .into_boxed_str();
+        Ok(Self {
+            path: Some(path),
+            source: None,
+        })
+    }
+
+    pub fn new_root(root: Box<str>, cwd: Option<Box<str>>) -> Result<Self> {
+        let mut cwd = match cwd {
+            None => std::env::current_dir().expect("failed to get current directory"),
+            Some(cwd) => cwd.as_ref().into(),
+        };
+        cwd.push(root.as_ref());
+        let path = normalize_path(cwd.as_path())
+            .to_string_lossy()
+            .into_owned()
+            .into_boxed_str();
+        Ok(Self { path: Some(path), source: None })
+    }
+
+    pub fn inline(source: Box<str>) -> Self {
+        Self { path: None, source: Some(source) }
+    }
+
+    pub fn path(&self) -> Option<&str> {
+        self.path.as_deref()
+    }
+
+    pub fn clone_path(&self) -> Option<Box<str>> {
+        self.path.as_ref().cloned()
+    }
+
+    pub fn resolve_source(&self) -> Result<Box<str>> {
+        if self.source.is_some() {
+            return Ok(self.source.as_deref().expect("is_some").into());
+        }
+
+        let path = self.path.as_deref().expect("constructor is either path or source");
+        match std::fs::read_to_string(path) {
+            Ok(ok) => Ok(ok.into_boxed_str()),
+            Err(err) => error!("cannot read `{path}`: {err}"),
+        }
+    }
+}
+
+// ===== utils =====
+
+/// Copied from [cargo][1]
+///
+/// [1]: https://github.com/rust-lang/cargo/blob/fede83ccf973457de319ba6fa0e36ead454d2e20/src/cargo/util/paths.rs#L61
+pub fn normalize_path(path: &Path) -> PathBuf {
+    use std::path::Component;
+    let mut components = path.components().peekable();
+    let mut ret = if let Some(c @ Component::Prefix(..)) = components.peek().cloned() {
+        components.next();
+        PathBuf::from(c.as_os_str())
+    } else {
+        PathBuf::new()
+    };
+
+    for component in components {
+        match component {
+            Component::Prefix(..) => unreachable!(),
+            Component::RootDir => {
+                ret.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::ParentDir => {
+                ret.pop();
+            }
+            Component::Normal(c) => {
+                ret.push(c);
             }
         }
-        Ok(())
     }
-
-    pub fn resolve_source(&self) -> syn::Result<Cow<'_,str>> {
-        match self.resolve_path() {
-            Some(path) => Ok(error!(!std::fs::read_to_string(path.as_ref())).into()),
-            None => match self {
-                Self::Source(src) => Ok(Cow::Borrowed(src.as_ref())),
-                _ => unreachable!(),
-            },
-        }
-    }
-
-    /// Return `Some` if template is external and have path.
-    pub fn resolve_path(&self) -> Option<Box<str>> {
-        match self {
-            Self::Path(path) => {
-                let mut cwd = std::env::current_dir().expect("failed to get current directory");
-                cwd.push("templates");
-                cwd.push(path.as_ref());
-                Some(cwd.to_string_lossy().into_owned().into_boxed_str())
-            },
-            Self::Root(path) => {
-                let mut cwd = std::env::current_dir().expect("failed to get current directory");
-                cwd.push(path.as_ref());
-                Some(cwd.to_string_lossy().into_owned().into_boxed_str())
-            }
-            Self::Source(_) => None,
-        }
-    }
+    ret
 }
 
-pub fn display(delim: Delimiter, expr: &syn::Expr) -> TokenStream {
-    use Delimiter::*;
-
-    match delim {
-        Quest => quote! {&::tour::Debug(&#expr)},
-        Percent => quote! {&::tour::Display(&#expr)},
-        Brace | Bang | Hash => quote! {&#expr},
-    }
-}
-
-pub fn writer(delim: Delimiter) -> TokenStream {
-    use Delimiter::*;
-
-    match delim {
-        Bang => quote! {&mut *writer},
-        Brace | Percent | Quest | Hash => quote! {&mut ::tour::Escape(&mut *writer)},
-    }
-}
+// ===== macros =====
 
 /// Everything will return `Result<T, syn::Error>`
 ///
-/// `error!("{}",error)`, standard `format!`
+/// `error!(?option, "{}", error)`, unwrap option with error as standard `format!`.
 ///
-/// `error!(attr, "{}", error)`, standard `format!` with `attr`s span.
-///
-/// `error!(!option, "{}", error)`, unwrap option with error as standard `format!`.
+/// `error!(!result, "{}", error)`, unwrap result with context.
 ///
 /// `error!(!result)`, unwrap result.
+///
+/// `error!(attr, "`{path}`: {}")`, standard `format!` with `attr`s span.
+///
+/// `error!("{}",error)`, standard `format!`
 macro_rules! error {
     (@ $s:expr, $($tt:tt)*) => {
         return Err(syn::Error::new($s, format!($($tt)*)))
     };
-    (!$s:expr, $($tt:tt)*) => {
+    (dbg $($tt:tt)*) => {{
+        let me = $($tt)*;
+        panic!("{:?}", me);
+        me
+    }};
+    (?$s:expr, $($tt:tt)*) => {
         match $s { Some(ok) => ok, None => crate::shared::error!($($tt)*), }
+    };
+    (!$s:expr, $($tt:tt)*) => {
+        match $s { Ok(ok) => ok, Err(err) => crate::shared::error!(@proc_macro2::Span::call_site(), $($tt)*, err), }
     };
     (!$s:expr) => {
         match $s { Ok(ok) => ok, Err(err) => crate::shared::error!("{err}"), }
@@ -165,6 +206,3 @@ macro_rules! error {
 }
 
 pub(crate) use error;
-
-use crate::syntax::LayoutTempl;
-

@@ -1,10 +1,11 @@
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
 use syn::*;
+use tour_core::Delimiter;
 
 use crate::{
     data::Template,
-    shared::{self, TemplDisplay},
+    shared::TemplDisplay,
     syntax::{RenderTempl, RenderValue, UseValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
@@ -78,8 +79,8 @@ impl Visitor {
                     RenderValue::LitStr(_lit_str) => todo!(),
                 },
                 Scalar::Expr(expr, delim) => {
-                    let display = shared::display(*delim, expr);
-                    let writer = shared::writer(*delim);
+                    let display = display(*delim, expr);
+                    let writer = writer(*delim);
                     self.tokens.extend(quote! {
                         #TemplDisplay::display(#display, #writer)?;
                     });
@@ -169,3 +170,21 @@ impl Visitor {
     }
 }
 
+fn display(delim: Delimiter, expr: &syn::Expr) -> TokenStream {
+    use Delimiter::*;
+
+    match delim {
+        Quest => quote! {&::tour::Debug(&#expr)},
+        Percent => quote! {&::tour::Display(&#expr)},
+        Brace | Bang | Hash => quote! {&#expr},
+    }
+}
+
+fn writer(delim: Delimiter) -> TokenStream {
+    use Delimiter::*;
+
+    match delim {
+        Bang => quote! {&mut *writer},
+        Brace | Percent | Quest | Hash => quote! {&mut ::tour::Escape(&mut *writer)},
+    }
+}
