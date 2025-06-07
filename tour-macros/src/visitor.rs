@@ -12,7 +12,7 @@ macro_rules! error {
 
 pub fn generate_file(meta: &Metadata) -> syn::Result<File> {
     let source = meta.resolve_source()?;
-    let ok = crate::shared::error!(!Parser::new(source.as_ref(), SynVisitor::new(meta)).parse());
+    let ok = crate::common::error!(!Parser::new(source.as_ref(), SynVisitor::new(meta)).parse());
 
     let SynVisitor { layout, imports, blocks, statics, root, .. } = ok;
     Ok(File::new(layout, imports, blocks, statics, root))

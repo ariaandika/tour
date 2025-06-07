@@ -2,7 +2,7 @@ use std::{borrow::Cow, fs::read_to_string};
 use syn::{spanned::Spanned, *};
 
 use crate::{
-    shared::{error, path, Reload},
+    common::{error, path, Reload},
     syntax::{BlockTempl, LayoutTempl},
     visitor::{Import, StmtTempl},
 };

@@ -5,7 +5,7 @@ use tour_core::Delimiter;
 
 use crate::{
     data::Template,
-    shared::TemplDisplay,
+    common::TemplDisplay,
     syntax::{RenderTempl, RenderValue, UseValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
@@ -96,7 +96,7 @@ impl Visitor {
                         tree.to_tokens(&mut self.tokens);
                         templ.semi_token.unwrap_or_default().to_tokens(&mut self.tokens);
                     },
-                    UseValue::LitStr(_lit_str) => todo!(),
+                    UseValue::LitStr(_lit_str) => unreachable!("use alias statement should be discarded")
                 },
                 Scalar::Const(templ) => {
                     templ.const_token.to_tokens(&mut self.tokens);

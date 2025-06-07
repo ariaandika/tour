@@ -8,7 +8,7 @@ use crate::{
     codegen,
     config::Config,
     data::{Metadata, Template},
-    shared::{TemplDisplay, TemplWrite},
+    common::{TemplDisplay, TemplWrite},
     sizehint::{self, SizeHint},
     syntax::LayoutTempl, visitor,
 };

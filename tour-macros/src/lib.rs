@@ -1,9 +1,37 @@
 //! Macros for [`tour`][1] template
 //!
+//! # Crate Structure
+//!
+//! ## Common
+//!
+//! - [`syntax`], template syntax definition
+//! - [`common`], shared common behavior
+//!
+//! ## Inputs
+//!
+//! - [`config`], deserialize shared configuration file
+//! - [`attribute`], deserialize derive macro attribute
+//! - [`visitor`], deserialize source code
+//!
+//! ## Data
+//!
+//! - [`Metadata`], template identity
+//! - [`File`], template source code data
+//! - [`Template`], `Metadata` and `File`
+//!
+//! ## Codegen
+//!
+//! - [`codegen`], generate template body
+//! - [`sizehint`], generate size hint calculation
+//! - [`template`], combine all code generation
+//!
 //! [1]: <https://docs.rs/tour>
+//! [`Metadata`]: data::Metadata
+//! [`File`]: data::File
+//! [`Template`]: data::Template
 
 mod syntax;
-mod shared;
+mod common;
 
 // ===== Input =====
 mod config;
@@ -14,8 +42,8 @@ mod visitor;
 mod data;
 
 // ===== Output =====
-mod sizehint;
 mod codegen;
+mod sizehint;
 mod template;
 
 

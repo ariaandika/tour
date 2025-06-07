@@ -16,7 +16,7 @@ pub mod path {
     //! [issue]: <https://github.com/rust-lang/rust/issuze/54725>
     use std::path::{Path, PathBuf};
 
-    use crate::{config::Config, shared::error};
+    use crate::{config::Config, common::error};
 
     pub fn cwd() -> PathBuf {
         std::env::current_dir().expect("current dir")
@@ -167,16 +167,16 @@ macro_rules! error {
         match $s { Some(ok) => ok, None => crate::shared::error!($($tt)*), }
     };
     (!$s:expr, $($tt:tt)*) => {
-        match $s { Ok(ok) => ok, Err(err) => crate::shared::error!(@proc_macro2::Span::call_site(), $($tt)*, err), }
+        match $s { Ok(ok) => ok, Err(err) => crate::common::error!(@proc_macro2::Span::call_site(), $($tt)*, err), }
     };
     (!$s:expr) => {
-        match $s { Ok(ok) => ok, Err(err) => crate::shared::error!("{err}"), }
+        match $s { Ok(ok) => ok, Err(err) => crate::common::error!("{err}"), }
     };
     ($s:expr, $($tt:tt)*) => {
-        crate::shared::error!(@ $s.span(), $($tt)*)
+        crate::common::error!(@ $s.span(), $($tt)*)
     };
     ($($tt:tt)*) => {
-        crate::shared::error!(@ proc_macro2::Span::call_site(), $($tt)*)
+        crate::common::error!(@ proc_macro2::Span::call_site(), $($tt)*)
     };
 }
 

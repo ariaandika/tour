@@ -3,7 +3,7 @@ use syn::{punctuated::Punctuated, *};
 use crate::{
     config::Config,
     data::Metadata,
-    shared::{Reload, error, path},
+    common::{Reload, error, path},
 };
 
 /// Derive macro type level attribute
