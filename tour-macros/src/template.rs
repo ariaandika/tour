@@ -1,16 +1,15 @@
 //! `Template` derive macro
 use proc_macro2::TokenStream;
 use quote::{ToTokens, format_ident, quote};
-use syn::*;
+use syn::{Data, DeriveInput, Ident, Result};
 
 use crate::{
-    attribute,
     codegen,
-    config::Config,
-    data::{Metadata, Template},
     common::{TemplDisplay, TemplWrite},
+    config::Config,
+    data::{BlockContent, File, Metadata, Template},
     sizehint::{self, SizeHint},
-    syntax::LayoutTempl, visitor,
+    syntax::LayoutTempl,
 };
 
 /// parse input -> codegen
@@ -34,23 +33,23 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 
     // ===== parse input =====
 
-    let meta = attribute::generate_meta(&attrs, &conf)?;
-    let file = visitor::generate_file(&meta)?;
+    let meta = Metadata::from_attrs(&attrs, &conf)?;
+    let file = File::from_meta(&meta)?;
     let templ = Template::new(meta, file);
 
     // ===== codegen =====
 
     let body = codegen::generate(&templ)?;
-    let include_source = generate::include_str_source(&templ);
+    let include = generate::include_str_source(&templ);
     let sources = generate::sources(&templ);
     let main = quote! {
-        #include_source
+        #include
         #(#sources)*
         #body
         Ok(())
     };
 
-    let blocks = template_block(&templ)?;
+    let blocks = BlockVisitor::generate(&templ)?;
     let mut size_hint = sizehint::size_hint(&templ)?;
     let (meta,file) = templ.into_parts();
 
@@ -59,7 +58,7 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             let main_name = format_ident!("Main{ident}");
             let destructor = genutil::destructor(&data, &ident, quote! { &self.0 });
 
-            let (layouts, visitor) = template_layout(layout, meta, &main_name)?;
+            let (layouts, visitor) = LayoutVisitor::generate(layout, meta, &main_name)?;
             let fold = [main_name.clone()]
                 .into_iter()
                 .chain(visitor.names)
@@ -94,7 +93,6 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         },
         None => {
             let destructor = genutil::destructor(&data, quote! { Self }, quote! { self });
-
             (quote! { }, quote! { #destructor #main })
         },
     };
@@ -129,18 +127,74 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
     })
 }
 
-fn template_block(templ: &Template) -> Result<TokenStream> {
-    let mut blocks = quote! { };
-    let mut contains = vec! { };
-    let mut size_hints = quote! { };
+struct BlockVisitor<'a> {
+    /// fn render_block()
+    blocks: TokenStream,
+    /// fn contains_block()
+    contains: Vec<String>,
+    /// fn size_hint_block()
+    size_hints: TokenStream,
+    templ: &'a Template,
+}
 
-    for block in templ.blocks().iter().filter(|e|e.templ.pub_token.is_some()) {
+impl BlockVisitor<'_> {
+    fn generate(templ: &Template) -> Result<TokenStream> {
+        let mut me = BlockVisitor {
+            blocks: quote! {},
+            contains: vec! {},
+            size_hints: quote! {},
+            templ,
+        };
+
+        for block in templ.blocks().iter().filter(|e|e.templ.pub_token.is_some()) {
+            me.visit_block(block)?;
+        }
+
+        let BlockVisitor { blocks, contains, size_hints, .. } = me;
+        let mut tokens = TokenStream::new();
+
+        if !blocks.is_empty() {
+            tokens.extend(quote! {
+                fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                    match block {
+                        #blocks
+                        _ => Err(::tour::Error::NoBlock),
+                    }
+                }
+            });
+        }
+
+        if !contains.is_empty() {
+            tokens.extend(quote! {
+                fn contains_block(&self, block: &str) -> bool {
+                    matches!(block, #(#contains)|*)
+                }
+            });
+        };
+
+        if !size_hints.is_empty() {
+            tokens.extend(quote! {
+                fn size_hint_block(&self, block: &str) -> (usize,Option<usize>) {
+                    match block {
+                        #size_hints
+                        _ => (0,None)
+                    }
+                }
+            });
+        };
+
+        Ok(tokens)
+    }
+
+    fn visit_block(&mut self, block: &BlockContent) -> Result<()> {
         // ===== codegen =====
 
         let name = block.templ.name.to_string();
-        let body = codegen::generate_block(templ, &block.templ.name)?;
-        let sources = generate::sources(templ);
-        blocks.extend(quote! {
+        let body = codegen::generate_block(self.templ, &block.templ.name)?;
+        let sources = generate::sources(self.templ);
+        let size_hint = genutil::size_hint(sizehint::size_hint_block(self.templ, &block.templ.name)?);
+
+        self.blocks.extend(quote! {
             #name => {
                 #(#sources)*
                 #body
@@ -148,65 +202,14 @@ fn template_block(templ: &Template) -> Result<TokenStream> {
             },
         });
 
-        let size_hint = genutil::size_hint(sizehint::size_hint_block(templ, &block.templ.name)?);
-        size_hints.extend(quote! {
+        self.size_hints.extend(quote! {
             #name => #size_hint,
         });
 
-        contains.push(name);
+        self.contains.push(name);
+
+        Ok(())
     }
-
-    let blocks = match blocks.is_empty() {
-        true => quote! { },
-        false => quote! {
-            fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                match block {
-                    #blocks
-                    _ => Err(::tour::Error::NoBlock),
-                }
-            }
-        }
-    };
-
-    let contains = match contains.is_empty() {
-        true => quote! { },
-        false => quote! {
-            fn contains_block(&self, block: &str) -> bool {
-                matches!(block, #(#contains)|*)
-            }
-        }
-    };
-
-    let size_hint = match size_hints.is_empty() {
-        true => quote! { },
-        false => quote! {
-            fn size_hint_block(&self, block: &str) -> (usize,Option<usize>) {
-                match block {
-                    #size_hints
-                    _ => (0,None)
-                }
-            }
-        }
-    };
-
-    Ok(quote! {
-        #blocks
-        #contains
-        #size_hint
-    })
-}
-
-/// Returns `(layout,generated layout names)`
-fn template_layout(source: LayoutTempl, meta: Metadata, inner: &Ident) -> Result<(TokenStream, LayoutVisitor)> {
-    let mut visitor = LayoutVisitor {
-        names: vec![],
-        size_hint: (0, None),
-        counter: 0,
-        meta,
-    };
-    let layout = visitor.visit_layout(source, inner)?;
-
-    Ok((layout, visitor))
 }
 
 struct LayoutVisitor {
@@ -217,6 +220,18 @@ struct LayoutVisitor {
 }
 
 impl LayoutVisitor {
+    fn generate(source: LayoutTempl, meta: Metadata, inner: &Ident) -> Result<(TokenStream, Self)> {
+        let mut visitor = LayoutVisitor {
+            names: vec![],
+            size_hint: (0, None),
+            counter: 0,
+            meta,
+        };
+        let layout = visitor.visit_layout(source, inner)?;
+
+        Ok((layout, visitor))
+    }
+
     fn generate_name(&mut self, templ: &Template) -> Ident {
         self.counter += 1;
         let suffix = std::path::Path::new(templ.path())
@@ -232,7 +247,7 @@ impl LayoutVisitor {
         // ===== parse input =====
 
         let meta = self.meta.clone_with_layout(&layout);
-        let file = visitor::generate_file(&meta)?;
+        let file = File::from_meta(&meta)?;
         let templ = Template::new(meta, file);
 
         // ===== codegen =====
@@ -281,6 +296,8 @@ impl LayoutVisitor {
 }
 
 mod genutil {
+    use syn::Member;
+
     use super::*;
 
     /// destruct fields for convenient

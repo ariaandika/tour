@@ -2,7 +2,8 @@ use std::{borrow::Cow, fs::read_to_string};
 use syn::{spanned::Spanned, *};
 
 use crate::{
-    common::{error, path, Reload},
+    common::{Reload, error, path},
+    config::Config,
     syntax::{BlockTempl, LayoutTempl},
     visitor::{Import, StmtTempl},
 };
@@ -24,6 +25,10 @@ impl Metadata {
             reload,
             block,
         }
+    }
+
+    pub fn from_attrs(attrs: &[Attribute], conf: &Config) -> Result<Metadata> {
+        crate::attribute::generate_meta(attrs, conf)
     }
 
     /// Generate inherited [`Metadata`] with given path.
@@ -100,6 +105,10 @@ impl File {
             statics,
             stmts,
         }
+    }
+
+    pub fn from_meta(meta: &Metadata) -> Result<File> {
+        crate::visitor::generate_file(meta)
     }
 
     pub fn stmts(&self) -> &[StmtTempl] {
