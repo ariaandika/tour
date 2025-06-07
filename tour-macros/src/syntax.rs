@@ -10,35 +10,37 @@ use syn::{
 
 /// template expressions
 pub enum ExprTempl {
-    /// `{{ layout "layout.html" }}`
-    /// `{{ extends "layout.html" }}`
+    // ===== Externals =====
+
+    /// `{{ <layout | extends> "path" }}`
     Layout(LayoutTempl),
+    /// `{{ use <<Path> | "path" as Ident> }}`
+    Use(UseTempl),
+    /// `{{ render <<Ident> | <Path> | "path"> }}`
+    Render(RenderTempl),
+
+    // ===== Internals =====
+
     /// `{{ yield }}`
     Yield(Token![yield]),
-    /// `{{ block Body }}`
+    /// `{{ [pub] [static] block <Ident> }}`
     Block(BlockTempl),
     /// `{{ endblock }}`
     Endblock(kw::endblock),
-    /// `{{ render Body }}`
-    /// `{{ render "layout/navbar.html" }}`
-    Render(RenderTempl),
-    /// `{{ username.get(1..6) }}`
+    /// `{{ <Expr> }}`
     Expr(Box<Expr>),
-    /// `{{ const NAME: &str = "deflect" }}`
+    /// `{{ const <Ident>: <Ty> = "string" }}`
     Const(ConstTempl),
-    /// `{{ if admin }}`
+    /// `{{ if <Expr> }}`
     If(IfTempl),
-    /// `{{ else if superuser }}`
+    /// `{{ else [if <Expr>] }}`
     Else(ElseTempl),
     /// `{{ endif }}`
     EndIf(kw::endif),
-    /// `{{ for task in tasks }}`
+    /// `{{ for <Pat> in <Expr> }}`
     For(ForTempl),
     /// `{{ endfor }}`
     EndFor(kw::endfor),
-    /// `{{ use crate::TimeDisplay }}`
-    /// `{{ use "components/prelude.html" }}`
-    Use(UseTempl),
 }
 
 impl Parse for ExprTempl {
