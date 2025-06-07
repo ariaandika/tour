@@ -1,11 +1,8 @@
 //! [`Visitor`] implementation via syn
 use syn::*;
-use tour_core::{Delimiter, ParseError, Result, Visitor};
+use tour_core::{Delimiter, ParseError, Parser, Result, Visitor};
 
-use crate::{
-    data::{BlockContent, File},
-    syntax::{ExprTempl, *},
-};
+use crate::{data::{BlockContent, File, Metadata, Template}, syntax::*};
 
 macro_rules! error {
     ($($tt:tt)*) => {
@@ -13,8 +10,39 @@ macro_rules! error {
     };
 }
 
-// NOTE: this module should not do any codegen
-// only collect all tokens in Visitor implementation
+pub fn generate_file(meta: &Metadata) -> syn::Result<File> {
+    let source = meta.resolve_source()?;
+    let ok = crate::shared::error!(!Parser::new(source.as_ref(), SynVisitor::new(meta)).parse());
+
+    let SynVisitor { layout, imports, blocks, statics, root, .. } = ok;
+    Ok(File::new(layout, imports, blocks, statics, root))
+}
+
+// ===== ImportKey =====
+
+pub struct Import {
+    path: Box<str>,
+    alias: Option<Ident>,
+    pub templ: Template,
+}
+
+impl PartialEq<str> for Import {
+    fn eq(&self, other: &str) -> bool {
+        self.path.as_ref() == other
+    }
+}
+
+impl PartialEq<Path> for Import {
+    fn eq(&self, other: &Path) -> bool {
+        let other = other.segments.first().map(|e|&e.ident);
+        match (self.alias.as_ref(), other) {
+            (Some(me), Some(other)) => me == other,
+            _ => false,
+        }
+    }
+}
+
+// ===== Nested Syntax =====
 
 pub enum StmtTempl {
     Scalar(Scalar),
@@ -61,29 +89,31 @@ impl Scope {
     }
 }
 
-pub struct SynVisitor {
+// ===== Visitor =====
+
+pub struct SynVisitor<'a> {
     layout: Option<LayoutTempl>,
+    imports: Vec<Import>,
     blocks: Vec<BlockContent>,
     statics: Vec<Box<str>>,
     root: Vec<StmtTempl>,
 
     /// currently open scopes
     scopes: Vec<Scope>,
+    meta: &'a Metadata,
 }
 
-impl SynVisitor {
-    pub fn new() -> Self {
+impl<'a> SynVisitor<'a> {
+    pub fn new(meta: &'a Metadata) -> Self {
         Self {
             layout: None,
-            blocks: <_>::default(),
+            imports: <_>::default(),
+            blocks: vec![],
             statics: vec![],
             root: vec![],
             scopes: vec![],
+            meta,
         }
-    }
-
-    pub fn finish(self) -> File {
-        File::new(self.layout, self.blocks, self.statics, self.root)
     }
 
     fn stack_mut(&mut self) -> &mut Vec<StmtTempl> {
@@ -92,9 +122,26 @@ impl SynVisitor {
             None => &mut self.root,
         }
     }
+
+    fn import(&mut self, lit_str: &LitStr) -> Result<()> {
+        let path = lit_str.value().into_boxed_str();
+        if !self.imports.iter().any(|e|e==&*path) {
+            let meta = self.meta.clone_with_path(&*path);
+            let file = match generate_file(&meta) {
+                Ok(ok) => ok,
+                Err(err) => return Err(ParseError::Generic(err.to_string())),
+            };
+            self.imports.push(Import {
+                path,
+                alias: None,
+                templ: Template::new(meta, file),
+            });
+        }
+        Ok(())
+    }
 }
 
-impl Visitor<'_> for SynVisitor {
+impl Visitor<'_> for SynVisitor<'_> {
     fn visit_static(&mut self, source: &str) -> Result<()> {
         let idx = self.statics.len().try_into().unwrap();
         self.stack_mut().push(StmtTempl::Scalar(Scalar::Static(source.into(), idx)));
@@ -112,26 +159,33 @@ impl Visitor<'_> for SynVisitor {
             // ===== layout =====
 
             ExprTempl::Layout(layout) => {
-                let dupl = self.layout.replace(layout);
-
-                if dupl.is_some() {
+                if self.layout.replace(layout).is_some() {
                     error!("cannot have 2 `extends` or `layout`")
                 }
             },
 
-            // ==== scalar =====
+            // ===== external reference =====
+
+            ExprTempl::Render(templ) => {
+                if let RenderValue::LitStr(lit_str) = &templ.value {
+                    self.import(lit_str)?;
+                }
+                self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(templ)));
+            },
+            ExprTempl::Use(templ) => {
+                match templ.value {
+                    UseValue::Tree(_, _) => self.stack_mut().push(StmtTempl::Scalar(Scalar::Use(templ))),
+                    UseValue::LitStr(lit_str) => self.import(&lit_str)?,
+                }
+            },
+
+            // ===== scalar =====
 
             ExprTempl::Yield(_yield) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Yield));
             },
-            ExprTempl::Render(templ) => {
-                self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(templ)));
-            },
             ExprTempl::Expr(expr) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Expr(expr,delim)));
-            },
-            ExprTempl::Use(templ) => {
-                self.stack_mut().push(StmtTempl::Scalar(Scalar::Use(templ)));
             },
             ExprTempl::Const(templ) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Const(templ)));

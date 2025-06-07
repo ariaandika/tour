@@ -3,7 +3,7 @@ use tour::Template;
 #[test]
 fn nested_layout() {
     #[derive(Template)]
-    #[template(root = "tour/tests/layout/base.html")]
+    #[template(path = "/tour/tests/layout/base.html")]
     struct NestedLayout {
         name: String,
     }

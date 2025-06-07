@@ -1,75 +1,62 @@
 use syn::{punctuated::Punctuated, *};
 
-use crate::shared::{Reload, Source, error};
-
-// ===== AttrData =====
+use crate::{
+    config::Config,
+    data::Metadata,
+    shared::{Reload, error, path},
+};
 
 /// Derive macro type level attribute
 ///
 /// Accept input:
 ///
-/// - source: `#[path = ".." | root = ".." | source = ".."]`
+/// - path: `#[path = ".." | source = ".."]`
 /// - block: `#[block = <Ident>]`
 /// - reload: `#[path = "debug" | "always" | "never" | <Expr>]`
-pub struct AttrData {
-    source: Source,
-    block: Option<Ident>,
-    reload: Reload,
-}
+pub fn generate_meta(attrs: &[Attribute], conf: &Config) -> Result<Metadata> {
+    let mut visitor = Visitor::new(conf);
 
-impl AttrData {
-    /// Parse from derive macro attributes
-    pub fn from_attr(attrs: &[Attribute]) -> Result<Self> {
-        let mut visitor = Visitor::default();
+    for attr in attrs.iter().filter(|e| e.meta.path().is_ident("template")) {
+        let attrs = attr.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
 
-        for attr in attrs.iter().filter(|e| e.meta.path().is_ident("template")) {
-            let attrs = attr.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
-
-            for MetaNameValue { path, value, .. } in attrs {
-                visitor.visit_pair(path.require_ident()?.clone(), value)?;
-            }
+        for MetaNameValue { path, value, .. } in attrs {
+            visitor.visit_pair(path.require_ident()?.clone(), value)?;
         }
-
-        let Visitor { source: Some(source), block, reload } = visitor else {
-            error!("one of `path`, `root`, or `source` is required")
-        };
-
-        Ok(Self { source, block, reload: reload.unwrap_or_default() })
     }
 
-    pub fn source(&self) -> &Source {
-        &self.source
-    }
+    let Visitor { path: Some(path), source, block, reload, .. } = visitor else {
+        error!("one of `path`, `root`, or `source` is required")
+    };
 
-    pub fn dir(&self) -> Option<Box<str>> {
-        std::path::Path::new(self.source.path()?)
-            .parent()
-            .map(|e| e.to_string_lossy().into_owned().into_boxed_str())
-    }
-
-    pub fn reload(&self) -> &Reload {
-        &self.reload
-    }
-
-    pub fn block(&self) -> Option<&Ident> {
-        self.block.as_ref()
-    }
+    Ok(Metadata::new(path, source, reload.unwrap_or_default(), block))
 }
 
-// ===== visitor =====
+// ===== Visitor =====
 
-#[derive(Default)]
-struct Visitor {
-    source: Option<Source>,
+struct Visitor<'a> {
+    conf: &'a Config,
+    path: Option<Box<str>>,
+    source: Option<Box<str>>,
     block: Option<Ident>,
     reload: Option<Reload>,
 }
 
-impl Visitor {
+impl<'a> Visitor<'a> {
+    fn new(
+        conf: &'a Config,
+    ) -> Self {
+        Self {
+            conf,
+            path: None,
+            source: None,
+            block: None,
+            reload: None,
+        }
+    }
+
     fn visit_pair(&mut self, name: Ident, value: Expr) -> Result<()> {
         match () {
             _ if name.eq("path") => self.visit_path(name, value),
-            _ if name.eq("root") => self.visit_root(name, value),
             _ if name.eq("source") => self.visit_source(name, value),
             _ if name.eq("block") => self.visit_block(name, value),
             _ if name.eq("reload") => self.visit_reload(name, value),
@@ -78,22 +65,17 @@ impl Visitor {
     }
 
     fn visit_path(&mut self, name: Ident, value: Expr) -> Result<()> {
-        match self.source.replace(Source::new_path(str_value(&value)?.into_boxed_str(), None)?) {
-            Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
-            None => Ok(()),
-        }
-    }
-
-    fn visit_root(&mut self, name: Ident, value: Expr) -> Result<()> {
-        match self.source.replace(Source::new_root(str_value(&value)?.into_boxed_str(), None)?) {
-            Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
-            None => Ok(()),
-        }
+        self.set_path(path::resolve(&str_value(&value)?, self.conf)?, name)
     }
 
     fn visit_source(&mut self, name: Ident, value: Expr) -> Result<()> {
-        match self.source.replace(Source::inline(str_value(&value)?.into_boxed_str())) {
-            Some(_) => error!(name, "only single either of `path`, `root`, or `source` allowed"),
+        self.source = Some(str_value(&value)?.into_boxed_str());
+        self.set_path(path::boxed(path::cwd()), name)
+    }
+
+    fn set_path(&mut self, source: Box<str>, span: impl spanned::Spanned) -> Result<()> {
+        match self.path.replace(source) {
+            Some(_) => error!(span, "only single either of `path`, `root`, or `source` allowed"),
             None => Ok(()),
         }
     }

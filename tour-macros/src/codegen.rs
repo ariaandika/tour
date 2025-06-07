@@ -75,8 +75,12 @@ impl Visitor {
                     });
                 },
                 Scalar::Render(RenderTempl { value, .. }) => match value {
-                    RenderValue::Path(path) => self.visit_stmts(&shared.templ.get_block(path.require_ident()?)?.stmts, shared)?,
-                    RenderValue::LitStr(_lit_str) => todo!(),
+                    RenderValue::Path(path) => {
+                        self.visit_stmts(&shared.templ.get_block(path.require_ident()?)?.stmts, shared)?
+                    },
+                    RenderValue::LitStr(lit_str) => {
+                        self.visit_stmts(shared.templ.get_import_by_path(lit_str)?.stmts()?, shared)?
+                    },
                 },
                 Scalar::Expr(expr, delim) => {
                     let display = display(*delim, expr);

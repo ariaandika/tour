@@ -36,7 +36,10 @@ impl Visitor<'_> {
                 Scalar::Static(source, _) => (source.len(), Some(source.len())),
                 Scalar::Render(RenderTempl { value, .. }) => match value {
                     RenderValue::Path(path) => self.visit_stmts(&self.templ.get_block(path.require_ident()?)?.stmts)?,
-                    RenderValue::LitStr(_lit_str) => todo!(),
+                    RenderValue::LitStr(_lit_str) => {
+                        // TODO: calculate imported template size_hint
+                        (0, None)
+                    }
                 },
                 Scalar::Yield | Scalar::Expr(_, _) | Scalar::Use(_) | Scalar::Const(_) => (0, None),
             },

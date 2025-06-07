@@ -3,7 +3,7 @@ use tour::Template;
 #[test]
 fn blocked() {
     #[derive(Template)]
-    #[template(root = "tour/tests/block/block.html")]
+    #[template(path = "/tour/tests/block/block.html")]
     struct Root;
 
     let p = Root.render().unwrap();
@@ -20,7 +20,7 @@ fn blocked() {
 #[test]
 fn block_comptime() {
     #[derive(Template)]
-    #[template(root = "tour/tests/block/block.html", block = Willie)]
+    #[template(path = "/tour/tests/block/block.html", block = Willie)]
     struct Block;
 
     let p = Block.render().unwrap();
@@ -30,7 +30,7 @@ fn block_comptime() {
 #[test]
 fn block_runtime() {
     #[derive(Template)]
-    #[template(root = "tour/tests/block/block.html")]
+    #[template(path = "/tour/tests/block/block.html")]
     struct Block;
 
     let p = Block.render_block("Body").unwrap();

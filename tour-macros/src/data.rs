@@ -1,70 +1,118 @@
-use syn::*;
-use tour_core::{ParseError, Parser};
+use std::{borrow::Cow, fs::read_to_string};
+use syn::{spanned::Spanned, *};
 
 use crate::{
-    attribute::AttrData,
-    shared::{Reload, Source, error},
+    shared::{error, path, Reload},
     syntax::{BlockTempl, LayoutTempl},
-    visitor::{StmtTempl, SynVisitor},
+    visitor::{Import, StmtTempl},
 };
 
 /// Extra information declared outside template file.
+#[derive(Debug)]
 pub struct Metadata {
-    path: Option<Box<str>>,
+    path: Box<str>,
+    source: Option<Box<str>>,
     reload: Reload,
     block: Option<Ident>,
 }
 
 impl Metadata {
-    pub fn from_attr(attr: &AttrData) -> Metadata {
+    pub fn new(path: Box<str>, source: Option<Box<str>>, reload: Reload, block: Option<Ident>) -> Self {
         Self {
-            path: attr.source().clone_path(),
-            reload: attr.reload().clone(),
-            block: attr.block().cloned(),
+            path,
+            source,
+            reload,
+            block,
         }
     }
 
-    pub fn from_layout(layout: &LayoutTempl, reload: Reload, cwd: Option<Box<str>>) -> Result<Metadata> {
-        let source = Source::from_layout(layout, cwd)?;
-        Ok(Self {
-            path: source.clone_path(),
-            reload,
-            block: None, // allows select block for a layout ?
-        })
+    /// Generate inherited [`Metadata`] with given path.
+    pub fn clone_with_path(&self, path: impl AsRef<std::path::Path>) -> Metadata {
+        Self {
+            path: path::resolve_at(path, self.dir_ref()),
+            source: None,
+            reload: self.reload.clone(),
+            block: None,
+        }
+    }
+
+    /// Generate layout [`Metadata`] inherited from parent meta.
+    pub fn clone_with_layout(&self, layout: &LayoutTempl) -> Metadata {
+        Self {
+            path: path::resolve_at(layout.path.value(), self.dir_ref()),
+            source: None,                // there is no inline layout
+            reload: self.reload.clone(), // layout specific reload seems redundant
+            block: None,                 // allows select block for a layout ?
+        }
+    }
+
+    pub fn resolve_source(&self) -> Result<Cow<'_, str>> {
+        match self.source.as_deref() {
+            Some(src) => Ok(src.into()),
+            None => Ok(error!(
+                !read_to_string(&*self.path),
+                "cannot read `{}`: {}", self.path
+            )
+            .into()),
+        }
+    }
+
+    pub fn dir_ref(&self) -> &std::path::Path {
+        std::path::Path::new(&*self.path)
+            .parent()
+            .unwrap_or(std::path::Path::new("/"))
+    }
+
+    /// Returns `true` if template is a file, not inlined.
+    pub fn is_file(&self) -> bool {
+        std::path::Path::new(&*self.path).is_file()
     }
 }
+
+// ===== File =====
 
 /// Content of a template file.
 pub struct File {
     layout: Option<LayoutTempl>,
+    imports: Vec<Import>,
     blocks: Vec<BlockContent>,
     statics: Vec<Box<str>>,
     stmts: Vec<StmtTempl>,
 }
 
+pub struct BlockContent {
+    pub templ: BlockTempl,
+    pub stmts: Vec<StmtTempl>,
+}
+
 impl File {
-    /// Create new [`File`].
     pub fn new(
         layout: Option<LayoutTempl>,
+        imports: Vec<Import>,
         blocks: Vec<BlockContent>,
         statics: Vec<Box<str>>,
         stmts: Vec<StmtTempl>,
     ) -> Self {
         Self {
             layout,
+            imports,
             blocks,
             statics,
             stmts,
         }
     }
 
-    pub fn from_source(source: &Source) -> Result<File> {
-        match Parser::new(source.resolve_source()?.as_ref(), SynVisitor::new()).parse() {
-            Ok(ok) => Ok(ok.finish()),
-            Err(ParseError::Generic(err)) => error!("{err}"),
-        }
+    pub fn stmts(&self) -> &[StmtTempl] {
+        &self.stmts
+    }
+
+    pub fn into_layout(self) -> Option<LayoutTempl> {
+        self.layout
     }
 }
+
+
+// ===== Template =====
 
 /// Contains a single file template information.
 ///
@@ -79,12 +127,32 @@ impl Template {
         Self { meta, file }
     }
 
-    /// Returns selected block if any, otherwise return all statements..
+    /// Returns selected block if any, otherwise return all statements.
     pub fn stmts(&self) -> Result<&[StmtTempl]> {
         match self.meta.block.as_ref() {
             Some(block) => Ok(&self.get_block(block)?.stmts),
-            None => Ok(&self.file.stmts),
+            None => Ok(self.file.stmts()),
         }
+    }
+
+    #[allow(unused, reason = "used later")]
+    pub fn get_import_by_alias(&self, key: &Path) -> Result<&Template> {
+        self.file
+            .imports
+            .iter()
+            .find(|&e|e == key)
+            .map(|e|&e.templ)
+            .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",fmt_path(key))))
+    }
+
+    pub fn get_import_by_path(&self, key: &LitStr) -> Result<&Template> {
+        let path = key.value();
+        self.file
+            .imports
+            .iter()
+            .find(|&e|e == &*path)
+            .map(|e|&e.templ)
+            .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",path)))
     }
 
     pub fn get_block(&self, block: &Ident) -> Result<&BlockContent> {
@@ -95,12 +163,8 @@ impl Template {
             .ok_or_else(|| Error::new(block.span(), format!("cannot find block `{block}`")))
     }
 
-    pub fn path(&self) -> Option<&str> {
-        self.meta.path.as_deref()
-    }
-
-    pub fn into_layout(self) -> Option<LayoutTempl> {
-        self.file.layout
+    pub fn path(&self) -> &str {
+        self.meta.path.as_ref()
     }
 
     /// Returns all static contents in template.
@@ -115,10 +179,27 @@ impl Template {
     pub fn blocks(&self) -> &[BlockContent] {
         &self.file.blocks
     }
+
+    /// Returns `true` if template is a file, not inlined.
+    pub fn is_file(&self) -> bool {
+        self.meta.is_file()
+    }
+
+    pub fn into_parts(self) -> (Metadata, File) {
+        (self.meta,self.file)
+    }
+
+    pub fn into_layout(self) -> Option<LayoutTempl> {
+        self.file.layout
+    }
 }
 
-pub struct BlockContent {
-    pub templ: BlockTempl,
-    pub stmts: Vec<StmtTempl>,
+fn fmt_path(path: &Path) -> String {
+    use std::fmt::Write;
+    let mut s = String::new();
+    for seg in &path.segments {
+        let _ = write!(s, "{}", seg.ident);
+    }
+    s
 }
 

@@ -6,6 +6,7 @@ mod syntax;
 mod shared;
 
 // ===== Input =====
+mod config;
 mod attribute;
 mod visitor;
 

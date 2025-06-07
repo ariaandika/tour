@@ -174,7 +174,8 @@ impl Parse for RenderTempl {
             render_token: input.parse()?,
             value: match () {
                 _ if input.peek(LitStr) => input.parse().map(RenderValue::LitStr)?,
-                _ => input.parse().map(RenderValue::Path)?,
+                _ if input.peek(Ident) => input.parse().map(RenderValue::Path)?,
+                _ => input.call(Path::parse_mod_style).map(RenderValue::Path)?,
             },
         })
     }

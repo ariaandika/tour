@@ -4,12 +4,13 @@ use quote::{ToTokens, format_ident, quote};
 use syn::*;
 
 use crate::{
-    attribute::AttrData,
+    attribute,
     codegen,
-    data::{File, Metadata, Template},
-    shared::{Source, TemplDisplay, TemplWrite},
+    config::Config,
+    data::{Metadata, Template},
+    shared::{TemplDisplay, TemplWrite},
     sizehint::{self, SizeHint},
-    syntax::LayoutTempl,
+    syntax::LayoutTempl, visitor,
 };
 
 /// parse input -> codegen
@@ -29,12 +30,12 @@ use crate::{
 /// ```
 pub fn template(input: DeriveInput) -> Result<TokenStream> {
     let DeriveInput { attrs, vis: _, ident, generics, data } = input;
+    let conf = Config::default();
 
     // ===== parse input =====
 
-    let attr = AttrData::from_attr(&attrs)?;
-    let meta = Metadata::from_attr(&attr);
-    let file = File::from_source(attr.source())?;
+    let meta = attribute::generate_meta(&attrs, &conf)?;
+    let file = visitor::generate_file(&meta)?;
     let templ = Template::new(meta, file);
 
     // ===== codegen =====
@@ -51,13 +52,14 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
 
     let blocks = template_block(&templ)?;
     let mut size_hint = sizehint::size_hint(&templ)?;
+    let (meta,file) = templ.into_parts();
 
-    let (main,expr) = match templ.into_layout() {
+    let (main,expr) = match file.into_layout() {
         Some(layout) => {
             let main_name = format_ident!("Main{ident}");
             let destructor = genutil::destructor(&data, &ident, quote! { &self.0 });
 
-            let (layouts, visitor) = template_layout(layout, attr, &main_name)?;
+            let (layouts, visitor) = template_layout(layout, meta, &main_name)?;
             let fold = [main_name.clone()]
                 .into_iter()
                 .chain(visitor.names)
@@ -195,12 +197,12 @@ fn template_block(templ: &Template) -> Result<TokenStream> {
 }
 
 /// Returns `(layout,generated layout names)`
-fn template_layout(source: LayoutTempl, attr: AttrData, inner: &Ident) -> Result<(TokenStream, LayoutVisitor)> {
+fn template_layout(source: LayoutTempl, meta: Metadata, inner: &Ident) -> Result<(TokenStream, LayoutVisitor)> {
     let mut visitor = LayoutVisitor {
         names: vec![],
         size_hint: (0, None),
         counter: 0,
-        attr,
+        meta,
     };
     let layout = visitor.visit_layout(source, inner)?;
 
@@ -211,19 +213,16 @@ struct LayoutVisitor {
     names: Vec<Ident>,
     size_hint: SizeHint,
     counter: usize,
-    attr: AttrData,
+    meta: Metadata,
 }
 
 impl LayoutVisitor {
     fn generate_name(&mut self, templ: &Template) -> Ident {
         self.counter += 1;
-        let suffix = match templ.path() {
-            Some(path) => std::path::Path::new(path)
-                .file_stem()
-                .and_then(|e|e.to_str())
-                .unwrap_or("OsFile"),
-            None => "Inline",
-        };
+        let suffix = std::path::Path::new(templ.path())
+            .file_stem()
+            .and_then(|e|e.to_str())
+            .unwrap_or("OsFile");
         let name = format_ident!("L{}{suffix}",self.counter);
         self.names.push(name.clone());
         name
@@ -232,9 +231,8 @@ impl LayoutVisitor {
     fn visit_layout(&mut self, layout: LayoutTempl, inner: &Ident) -> Result<TokenStream> {
         // ===== parse input =====
 
-        let source = Source::from_layout(&layout, self.attr.dir())?;
-        let meta = Metadata::from_layout(&layout, self.attr.reload().clone(), self.attr.dir())?;
-        let file = File::from_source(&source)?;
+        let meta = self.meta.clone_with_layout(&layout);
+        let file = visitor::generate_file(&meta)?;
         let templ = Template::new(meta, file);
 
         // ===== codegen =====
@@ -309,26 +307,20 @@ mod genutil {
 }
 
 mod generate {
-    //! contains functions to generate code step by step
-    //!
-    //! it is splitted because root template and layout template have different step
-    //!
-    //! 1. template, template body
-    //! 2. include_str_source, `include_str!()` to trigger recompile on template change
-    //! 3. sources, static contents as array to allow runtime reload
     use super::*;
 
     pub fn include_str_source(templ: &Template) -> TokenStream {
-        match templ.path() {
-            Some(path) => quote! { const _: &str = include_str!(#path); },
-            None => quote! { },
+        let path = templ.path();
+        match std::path::Path::new(path).is_file() {
+            true => quote! { const _: &str = include_str!(#path); },
+            false => quote! {},
         }
     }
 
     pub fn sources(templ: &Template) -> [TokenStream;2] {
         let path = templ.path();
         let statics = templ.statics();
-        match (path.is_some(), templ.reload().as_bool()) {
+        match (templ.is_file(), templ.reload().as_bool()) {
             (true,Ok(true)) => [
                 quote!{ let sources = ::std::fs::read_to_string(#path)?; },
                 quote!{ let sources = ::tour::Parser::new(&sources,::tour::StaticVisitor::new()).parse()?.statics; },
