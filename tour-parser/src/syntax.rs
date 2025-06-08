@@ -1,6 +1,6 @@
-//! Syntax definition for template expression.
+//! Syntax definition for template statements.
 //!
-//! This only syntax definition for partial expression like `{{ if user.is_admin() }}`.
+//! This only syntax definition for partial statements like `{{ if user.is_admin() }}`.
 //!
 //! For full ast declaration, see [`ast`][super::ast].
 use syn::{

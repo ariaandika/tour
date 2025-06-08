@@ -76,6 +76,7 @@
 //! [`UseTempl`]: syntax::UseTempl
 
 pub mod syntax;
+pub mod ast;
 mod common;
 
 // ===== Input =====

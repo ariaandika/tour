@@ -23,51 +23,6 @@ pub fn generate_file(meta: &Metadata) -> syn::Result<File> {
 
 // ===== Nested Syntax =====
 
-pub enum StmtTempl {
-    Scalar(Scalar),
-    Scope(Scope),
-}
-
-pub enum Scalar {
-    Static(Box<str>,u32),
-    Expr(Box<Expr>,Delimiter),
-    Render(RenderTempl),
-    Use(UseTempl),
-    Const(ConstTempl),
-    Yield,
-}
-
-pub enum Scope {
-    Root { stmts: Vec<StmtTempl> },
-    If {
-        templ: IfTempl,
-        stmts: Vec<StmtTempl>,
-        else_branch: Option<(Token![else],Box<Scope>)>
-    },
-    For {
-        templ: ForTempl,
-        stmts: Vec<StmtTempl>,
-        else_branch: Option<(Token![else],Box<Scope>)>
-    },
-    Block {
-        templ: BlockTempl,
-        stmts: Vec<StmtTempl>,
-    },
-}
-
-impl Scope {
-    fn stack(&mut self) -> &mut Vec<StmtTempl> {
-        match self {
-            Self::Root { stmts } => stmts,
-            Self::Block { stmts, .. } => stmts,
-            Self::For { else_branch: Some(branch), .. } => branch.1.stack(),
-            Self::For { stmts, .. } => stmts,
-            Self::If { else_branch: Some(branch), .. } => branch.1.stack(),
-            Self::If { stmts, .. } => stmts,
-        }
-    }
-}
-
 // ===== Visitor =====
 
 pub struct SynVisitor<'a> {
@@ -146,7 +101,7 @@ impl Visitor<'_> for SynVisitor<'_> {
         match expr {
             // ===== layout =====
 
-            ExprTempl::Layout(layout) => {
+            StmtSyn::Layout(layout) => {
                 if self.layout.replace(layout).is_some() {
                     error!("cannot have 2 `extends` or `layout`")
                 }
@@ -154,13 +109,13 @@ impl Visitor<'_> for SynVisitor<'_> {
 
             // ===== external reference =====
 
-            ExprTempl::Render(templ) => {
+            StmtSyn::Render(templ) => {
                 if let RenderValue::LitStr(lit_str) = &templ.value {
                     self.import(lit_str)?;
                 }
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Render(templ)));
             },
-            ExprTempl::Use(templ) => {
+            StmtSyn::Use(templ) => {
                 match templ.value {
                     UseValue::Tree(_, _) => self.stack_mut().push(StmtTempl::Scalar(Scalar::Use(templ))),
                     UseValue::Alias(alias) => self.import_aliased(alias)?,
@@ -169,31 +124,31 @@ impl Visitor<'_> for SynVisitor<'_> {
 
             // ===== scalar =====
 
-            ExprTempl::Yield(_yield) => {
+            StmtSyn::Yield(_yield) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Yield));
             },
-            ExprTempl::Expr(expr) => {
+            StmtSyn::Expr(expr) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Expr(expr,delim)));
             },
-            ExprTempl::Const(templ) => {
+            StmtSyn::Const(templ) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Const(templ)));
             },
 
             // ===== open scope =====
 
-            ExprTempl::Block(templ) => {
+            StmtSyn::Block(templ) => {
                 self.scopes.push(Scope::Block { templ, stmts: vec![] });
             },
-            ExprTempl::If(templ) => {
+            StmtSyn::If(templ) => {
                 self.scopes.push(Scope::If { templ, stmts: vec![], else_branch: None, });
             },
-            ExprTempl::For(templ) => {
+            StmtSyn::For(templ) => {
                 self.scopes.push(Scope::For { templ, stmts: vec![], else_branch: None, });
             },
 
             // ===== else / intermediate scope =====
 
-            ExprTempl::Else(ElseTempl { else_token, elif_branch }) => {
+            StmtSyn::Else(ElseTempl { else_token, elif_branch }) => {
                 type ElseBranch = Option<(Token![else], Box<Scope>)>;
 
                 fn take_latest_else_branch(else_branch: &mut ElseBranch) -> Result<&mut ElseBranch> {
@@ -244,7 +199,7 @@ impl Visitor<'_> for SynVisitor<'_> {
 
             // ===== close scope =====
 
-            ExprTempl::Endblock(_endblock) => {
+            StmtSyn::Endblock(_endblock) => {
                 let (templ,stmts) = match self.scopes.pop() {
                     Some(Scope::Block { templ, stmts }) => (templ,stmts),
                     Some(scope) => error!("cannot close `endblock` in `{scope}` scope"),
@@ -264,7 +219,7 @@ impl Visitor<'_> for SynVisitor<'_> {
 
                 self.blocks.push(BlockContent { templ, stmts });
             },
-            ExprTempl::EndIf(_endif) => {
+            StmtSyn::EndIf(_endif) => {
                 let if_scope = match self.scopes.pop() {
                     Some(templ @ Scope::If { .. }) => templ,
                     Some(scope) => error!("cannot close `endif` in `{scope}` scope"),
@@ -273,7 +228,7 @@ impl Visitor<'_> for SynVisitor<'_> {
 
                 self.stack_mut().push(StmtTempl::Scope(if_scope));
             },
-            ExprTempl::EndFor(_endfor) => {
+            StmtSyn::EndFor(_endfor) => {
                 let for_scope = match self.scopes.pop() {
                     Some(templ @ Scope::For { .. }) => templ,
                     Some(scope) => error!("cannot close `endfor` in `{scope}` scope"),
