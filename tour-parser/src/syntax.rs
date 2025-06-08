@@ -3,6 +3,7 @@
 //! This only syntax definition for partial statements like `{{ if user.is_admin() }}`.
 //!
 //! For full ast declaration, see [`ast`][super::ast].
+use std::rc::Rc;
 use syn::{
     ext::IdentExt as _,
     parse::{Parse, ParseStream},
@@ -42,9 +43,9 @@ pub enum StmtSyn {
     /// `{{ yield }}`
     Yield(Token![yield]),
     /// `{{ <ItemTempl> }}`
-    Item(Box<ItemTempl>),
+    Item(Rc<ItemTempl>),
     /// `{{ <Expr> }}`
-    Expr(Box<Expr>),
+    Expr(Rc<Expr>),
 }
 
 impl Parse for StmtSyn {
@@ -108,21 +109,21 @@ pub struct BlockTempl {
 /// `{{ if <Expr> }}`
 pub struct IfTempl {
     pub if_token: Token![if],
-    pub cond: Box<Expr>,
+    pub cond: Rc<Expr>,
 }
 
 /// `{{ else [if <Expr>] }}`
 pub struct ElseTempl {
     pub else_token: Token![else],
-    pub elif_branch: Option<(Token![if],Box<Expr>)>
+    pub elif_branch: Option<(Token![if],Rc<Expr>)>
 }
 
 /// `{{ for <Pat> in <Expr> }}`
 pub struct ForTempl {
     pub for_token: Token![for],
-    pub pat: Box<Pat>,
+    pub pat: Rc<Pat>,
     pub in_token: Token![in],
-    pub expr: Box<Expr>,
+    pub expr: Rc<Expr>,
 }
 
 /// `{{ <ItemTempl> }}`
@@ -235,7 +236,7 @@ impl Parse for ForTempl {
         Ok(Self {
             for_token: input.parse()?,
             // this Pat function that is used by syn parse
-            pat: Box::new(Pat::parse_multi_with_leading_vert(input)?),
+            pat: Rc::new(Pat::parse_multi_with_leading_vert(input)?),
             in_token: input.parse()?,
             expr: input.parse()?,
         })

@@ -82,10 +82,10 @@ pub mod common;
 
 // ===== Input =====
 mod config;
-mod visitor;
 
 // ===== Data =====
 pub mod metadata;
+pub mod file;
 pub mod data;
 
 // ===== Output =====

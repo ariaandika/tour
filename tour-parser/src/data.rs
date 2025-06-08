@@ -5,56 +5,10 @@ use syn::*;
 use crate::{
     common::{Reload, error, path},
     config::Config,
+    file::File,
     syntax::{BlockTempl, LayoutTempl},
     visitor::StmtTempl,
 };
-
-// ===== File =====
-
-/// Content of a template file.
-pub struct File {
-    layout: Option<LayoutTempl>,
-    imports: Vec<Import>,
-    blocks: Vec<BlockContent>,
-    statics: Vec<Box<str>>,
-    stmts: Vec<StmtTempl>,
-}
-
-pub struct BlockContent {
-    pub templ: BlockTempl,
-    pub stmts: Vec<StmtTempl>,
-}
-
-impl File {
-    pub fn new(
-        layout: Option<LayoutTempl>,
-        imports: Vec<Import>,
-        blocks: Vec<BlockContent>,
-        statics: Vec<Box<str>>,
-        stmts: Vec<StmtTempl>,
-    ) -> Self {
-        Self {
-            layout,
-            imports,
-            blocks,
-            statics,
-            stmts,
-        }
-    }
-
-    pub fn from_meta(meta: &Metadata) -> Result<File> {
-        crate::visitor::generate_file(meta)
-    }
-
-    pub fn stmts(&self) -> &[StmtTempl] {
-        &self.stmts
-    }
-
-    pub fn into_layout(self) -> Option<LayoutTempl> {
-        self.layout
-    }
-}
-
 
 // ===== Template =====
 
@@ -173,58 +127,5 @@ impl Template {
     pub fn into_layout(self) -> Option<LayoutTempl> {
         self.file.layout
     }
-}
-
-// ===== ImportKey =====
-
-pub struct Import {
-    path: Box<str>,
-    alias: Option<Ident>,
-    templ: Template,
-}
-
-impl Import {
-    pub fn new(path: Box<str>, alias: Option<Ident>, templ: Template) -> Self {
-        Self { path, alias, templ }
-    }
-
-    pub fn templ(&self) -> &Template {
-        &self.templ
-    }
-
-    pub fn generate_name(&self) -> Ident {
-        match &self.alias {
-            Some(name) => format_ident!("Import{name}"),
-            None => {
-                let suffix = std::path::Path::new(&*self.path)
-                    .file_stem()
-                    .and_then(|e|e.to_str())
-                    .unwrap_or("OsFile");
-                format_ident!("Import{suffix}")
-            },
-        }
-    }
-}
-
-impl PartialEq<str> for Import {
-    fn eq(&self, other: &str) -> bool {
-        self.path.as_ref() == other
-    }
-}
-
-impl PartialEq<Ident> for Import {
-    fn eq(&self, other: &Ident) -> bool {
-        match self.alias.as_ref() {
-            Some(id) => id == other,
-            None => false,
-        }
-    }
-}
-
-// ===== AliasKind =====
-
-pub enum AliasKind<'a> {
-    Block(&'a BlockContent),
-    Import(&'a Import),
 }
 

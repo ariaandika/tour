@@ -1,4 +1,4 @@
-//! Full syntax definition including nested scope for template statements.
+//! Full syntax definition that will actually be generated.
 use std::rc::Rc;
 use syn::*;
 use tour_core::Delimiter;
@@ -19,14 +19,19 @@ pub enum Scalar {
         value: Rc<str>,
         index: u32,
     },
-    /// Rust expression.
-    Expr(Rc<Expr>,Delimiter),
-    /// Render block or external template.
-    Render(RenderTempl),
     /// Import and alias external template.
     Use(UseTempl),
+    /// Render block or external template.
+    Render(RenderTempl),
     /// Render body for layout.
     Yield,
+    /// Rust item that will be generated as is.
+    Item(Rc<ItemTempl>),
+    /// Rust expression.
+    Expr {
+        expr: Rc<Expr>,
+        delim: Delimiter,
+    },
 }
 
 /// Scoped rust statement.
