@@ -47,9 +47,8 @@ impl Visitor<'_> {
                         };
                         self.visit_stmts(target)?
                     },
-                    RenderValue::LitStr(_lit_str) => {
-                        // TODO: calculate imported template size_hint
-                        (0, None)
+                    RenderValue::LitStr(lit_str) => {
+                        self.visit_stmts(self.templ.get_import_by_path(lit_str)?.templ().stmts()?)?
                     }
                 },
                 Scalar::Yield | Scalar::Expr(_, _) | Scalar::Use(_) | Scalar::Const(_) => (0, None),
