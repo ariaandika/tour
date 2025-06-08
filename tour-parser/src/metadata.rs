@@ -86,6 +86,14 @@ impl Metadata {
     pub(crate) fn is_file(&self) -> bool {
         std::path::Path::new(&*self.path).is_file()
     }
+
+    pub fn block(&self) -> Option<&Ident> {
+        self.block.as_ref()
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
+    }
 }
 
 // ===== Reload =====

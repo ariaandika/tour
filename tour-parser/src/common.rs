@@ -134,6 +134,9 @@ macro_rules! error {
     (!$s:expr) => {
         match $s { Ok(ok) => ok, Err(err) => crate::common::error!("{err}"), }
     };
+    ($msg:literal, $($tt:tt)*) => {
+        crate::common::error!(@ proc_macro2::Span::call_site(), $msg, $($tt)*)
+    };
     ($s:expr, $($tt:tt)*) => {
         crate::common::error!(@ $s.span(), $($tt)*)
     };

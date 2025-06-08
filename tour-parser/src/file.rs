@@ -1,6 +1,6 @@
 use quote::format_ident;
 use std::rc::Rc;
-use syn::{Ident, Result};
+use syn::{Ident, LitStr, Result};
 
 use crate::{
     ast::StmtTempl,
@@ -10,8 +10,10 @@ use crate::{
 };
 
 mod visitor;
+mod validate;
 
 use visitor::SynVisitor;
+use validate::ValidateVisitor;
 
 /// Content of a template source.
 pub struct File {
@@ -30,7 +32,37 @@ pub struct BlockContent {
 impl File {
     /// Create [`File`] from [`Metadata`].
     pub fn from_meta(meta: &Metadata) -> Result<File> {
-        SynVisitor::generate(meta)
+        let file = SynVisitor::generate(meta)?;
+        ValidateVisitor::validate(&file)?;
+        Ok(file)
+    }
+
+    /// Get block by id.
+    pub fn get_block(&self, block: &Ident) -> Option<&BlockContent> {
+        self.blocks.iter().find(|e| &e.templ.name == block)
+    }
+
+    pub(crate) fn block(&self, block: &Ident) -> &BlockContent {
+        self.get_block(block).expect("[BUG] validation block rendering missed")
+    }
+
+    /// Get imported template by id.
+    pub fn get_import_by_id(&self, name: &Ident) -> Option<&Import> {
+        self.imports.iter().find(|&e| e == name)
+    }
+
+    pub(crate) fn import_by_id(&self, name: &Ident) -> &Import {
+        self.get_import_by_id(name).expect("[BUG] validation import rendering missed")
+    }
+
+    /// Get imported template by path.
+    pub fn get_import_by_path(&self, path: &LitStr) -> Option<&Import> {
+        let path = path.value();
+        self.imports.iter().find(|&e| e == &*path)
+    }
+
+    pub(crate) fn import_by_path(&self, path: &LitStr) -> &Import {
+        self.get_import_by_path(path).expect("[BUG] validation import rendering missed")
     }
 
     /// Returns all statements.
@@ -41,6 +73,18 @@ impl File {
     /// Consume file into [`LayoutTempl`].
     pub fn into_layout(self) -> Option<LayoutTempl> {
         self.layout
+    }
+
+    pub fn imports(&self) -> &[Import] {
+        &self.imports
+    }
+
+    pub fn blocks(&self) -> &[BlockContent] {
+        &self.blocks
+    }
+
+    pub fn statics(&self) -> &[Rc<str>] {
+        &self.statics
     }
 }
 
