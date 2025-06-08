@@ -1,57 +1,53 @@
+use std::rc::Rc;
 use syn::{punctuated::Punctuated, *};
 
+use super::{Metadata, Reload};
 use crate::{
+    common::{DERIVE_ATTRIBUTE, error, path},
     config::Config,
-    data::Metadata,
-    common::{Reload, error, path},
 };
-
-/// Derive macro type level attribute
-///
-/// Accept input:
-///
-/// - path: `#[path = ".." | source = ".."]`
-/// - block: `#[block = <Ident>]`
-/// - reload: `#[path = "debug" | "always" | "never" | <Expr>]`
-pub fn generate_meta(attrs: &[Attribute], conf: &Config) -> Result<Metadata> {
-    let mut visitor = Visitor::new(conf);
-
-    for attr in attrs.iter().filter(|e| e.meta.path().is_ident("template")) {
-        let attrs = attr.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
-
-        for MetaNameValue { path, value, .. } in attrs {
-            visitor.visit_pair(path.require_ident()?.clone(), value)?;
-        }
-    }
-
-    let Visitor { path: Some(path), source, block, reload, .. } = visitor else {
-        error!("one of `path`, `root`, or `source` is required")
-    };
-
-    Ok(Metadata::new(path, source, reload.unwrap_or_default(), block))
-}
 
 // ===== Visitor =====
 
-struct Visitor<'a> {
+pub struct AttrVisitor<'a> {
     conf: &'a Config,
-    path: Option<Box<str>>,
-    source: Option<Box<str>>,
+    path: Option<Rc<str>>,
+    source: Option<Rc<str>>,
     block: Option<Ident>,
     reload: Option<Reload>,
 }
 
-impl<'a> Visitor<'a> {
-    fn new(
-        conf: &'a Config,
-    ) -> Self {
-        Self {
+impl<'a> AttrVisitor<'a> {
+    /// Derive macro type level attribute
+    ///
+    /// Accept input:
+    ///
+    /// - path: `#[path = ".." | source = ".."]`
+    /// - block: `#[block = <Ident>]`
+    /// - reload: `#[path = "debug" | "always" | "never" | <Expr>]`
+    pub fn parse(attrs: &[Attribute], conf: &'a Config) -> Result<Metadata> {
+        let mut visitor = Self {
             conf,
             path: None,
             source: None,
             block: None,
             reload: None,
+        };
+
+        for attr in attrs.iter().filter(|e| e.meta.path().is_ident(DERIVE_ATTRIBUTE)) {
+            let attrs =
+                attr.parse_args_with(Punctuated::<MetaNameValue, Token![,]>::parse_terminated)?;
+
+            for MetaNameValue { path, value, .. } in attrs {
+                visitor.visit_pair(path.require_ident()?.clone(), value)?;
+            }
         }
+
+        let AttrVisitor { path: Some(path), source, block, reload, .. } = visitor else {
+            error!("one of `path`, `root`, or `source` is required")
+        };
+
+        Ok(Metadata { path, source, reload: reload.unwrap_or_default(), block, })
     }
 
     fn visit_pair(&mut self, name: Ident, value: Expr) -> Result<()> {
@@ -69,11 +65,11 @@ impl<'a> Visitor<'a> {
     }
 
     fn visit_source(&mut self, name: Ident, value: Expr) -> Result<()> {
-        self.source = Some(str_value(&value)?.into_boxed_str());
+        self.source = Some(str_value(&value)?.into());
         self.set_path(path::boxed(path::cwd()), name)
     }
 
-    fn set_path(&mut self, source: Box<str>, span: impl spanned::Spanned) -> Result<()> {
+    fn set_path(&mut self, source: Rc<str>, span: impl spanned::Spanned) -> Result<()> {
         match self.path.replace(source) {
             Some(_) => error!(span, "only single either of `path`, `root`, or `source` allowed"),
             None => Ok(()),
@@ -95,7 +91,7 @@ impl<'a> Visitor<'a> {
             Some(s) => error! {
                 "expected `debug`, `always`, `never`, or expression, found `{s}`"
             },
-            None => Reload::Expr(Box::new(value)),
+            None => Reload::Expr(Rc::new(value)),
         };
 
         match self.reload.replace(value) {

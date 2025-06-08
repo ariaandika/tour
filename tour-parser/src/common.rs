@@ -1,32 +1,55 @@
 
-// ===== Path =====
+// ===== Namespace =====
 
-pub mod path {
-    //! Path resolution.
-    //!
-    //! user given path:
-    //!
-    //! - `./layout`, resolve relative from current source file
-    //! - `layout`, resolve from `templates` directory
-    //! - `/layout`, resolve from current directory
-    //!
-    //! currently, rust is unable to get rust source file path,
-    //! for now, relative path in attribute returns error.
-    //!
-    //! [issue]: <https://github.com/rust-lang/rust/issuze/54725>
-    use std::path::{Path, PathBuf};
+/// `ToTokens` for public name
+pub(crate) struct TemplDisplay;
 
-    use crate::{config::Config, common::error};
+impl quote::ToTokens for TemplDisplay {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        quote::quote! {::tour::TemplDisplay}.to_tokens(tokens);
+    }
+}
+
+/// `ToTokens` for public name
+pub(crate) struct TemplWrite;
+
+impl quote::ToTokens for TemplWrite {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        quote::quote! {::tour::TemplWrite}.to_tokens(tokens);
+    }
+}
+
+// ===== Constants =====
+
+pub const DERIVE_ATTRIBUTE: &str = "template";
+
+/// Path resolution.
+///
+/// user given path:
+///
+/// - `./layout`, resolve relative from current source file
+/// - `layout`, resolve from `templates` directory
+/// - `/layout`, resolve from current directory
+///
+/// currently, rust is unable to get rust source file path,
+/// for now, relative path in attribute returns error.
+///
+/// [issue]: <https://github.com/rust-lang/rust/issuze/54725>
+pub(crate) mod path {
+    use std::{path::{Path, PathBuf}, rc::Rc};
+
+    use super::error;
+    use crate::config::Config;
 
     pub fn cwd() -> PathBuf {
         std::env::current_dir().expect("current dir")
     }
 
-    pub fn boxed(buf: PathBuf) -> Box<str> {
-        buf.to_string_lossy().into_owned().into_boxed_str()
+    pub fn boxed(buf: PathBuf) -> Rc<str> {
+        buf.to_string_lossy().into()
     }
 
-    pub fn resolve(mut path: &str, conf: &Config) -> syn::Result<Box<str>> {
+    pub fn resolve(mut path: &str, conf: &Config) -> syn::Result<Rc<str>> {
         let mut cwd = cwd();
         match () {
             _ if path.starts_with(".") => error!("cannot get template file using relative path"),
@@ -37,13 +60,12 @@ pub mod path {
     }
 
     /// resolve path relative to given directory
-    pub fn resolve_at(path: impl AsRef<Path>, cwd: impl Into<PathBuf>) -> Box<str> {
+    pub fn resolve_at(path: impl AsRef<Path>, cwd: impl Into<PathBuf>) -> Rc<str> {
         let mut cwd = cwd.into();
         cwd.push(path);
         normalize(cwd.as_path())
             .to_string_lossy()
-            .into_owned()
-            .into_boxed_str()
+            .into()
     }
 
     /// Copied from [cargo][1]
@@ -75,69 +97,6 @@ pub mod path {
             }
         }
         ret
-    }
-}
-
-// ===== Namespace =====
-
-/// `ToTokens` for public name
-pub struct TemplDisplay;
-
-impl quote::ToTokens for TemplDisplay {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        quote::quote! {::tour::TemplDisplay}.to_tokens(tokens);
-    }
-}
-
-/// `ToTokens` for public name
-pub struct TemplWrite;
-
-impl quote::ToTokens for TemplWrite {
-    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
-        quote::quote! {::tour::TemplWrite}.to_tokens(tokens);
-    }
-}
-
-// ===== Reload =====
-
-/// Runtime template reload behavior.
-#[derive(Clone)]
-pub enum Reload {
-    Debug,
-    Always,
-    Never,
-    Expr(Box<syn::Expr>),
-}
-
-impl Default for Reload {
-    fn default() -> Self {
-        if cfg!(feature = "dev-reload") {
-            Reload::Debug
-        } else {
-            Reload::Never
-        }
-    }
-}
-
-impl Reload {
-    pub fn as_bool(&self) -> std::result::Result<bool,&syn::Expr> {
-        match self {
-            Reload::Debug => Ok(cfg!(debug_assertions)),
-            Reload::Always => Ok(true),
-            Reload::Never => Ok(false),
-            Reload::Expr(expr) => Err(expr),
-        }
-    }
-}
-
-impl std::fmt::Debug for Reload {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::Debug => write!(f, "Reload::Debug"),
-            Self::Always => write!(f, "Reload::Always"),
-            Self::Never => write!(f, "Reload::Never"),
-            Self::Expr(_) => write!(f, "Reload::<Expr>"),
-        }
     }
 }
 

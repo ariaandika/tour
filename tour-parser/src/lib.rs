@@ -4,7 +4,8 @@
 //!
 //! The goal is to generate `tour::Template` trait implementation.
 //!
-//! All code generation requires [`Template`] struct. To build it, requires [`Metadata`] and [`File`].
+//! All code generation requires [`Template`] struct. To build it, requires [`Metadata`] and
+//! [`File`].
 //!
 //! # [`Metadata`]
 //!
@@ -77,14 +78,14 @@
 
 pub mod syntax;
 pub mod ast;
-mod common;
+pub mod common;
 
 // ===== Input =====
 mod config;
-mod attribute;
 mod visitor;
 
 // ===== Data =====
+pub mod metadata;
 pub mod data;
 
 // ===== Output =====
