@@ -114,6 +114,19 @@ impl<'a> SynVisitor<'a> {
         }
         Ok(())
     }
+
+    fn import_aliased(&mut self, alias: Alias) -> Result<()> {
+        let path = alias.path.value().into_boxed_str();
+        if !self.imports.iter().any(|e|e==&*path) {
+            let meta = self.meta.clone_with_path(&*path);
+            let file = match generate_file(&meta) {
+                Ok(ok) => ok,
+                Err(err) => return Err(ParseError::Generic(err.to_string())),
+            };
+            self.imports.push(Import::new(path, Some(alias.ident), Template::new(meta, file)));
+        }
+        Ok(())
+    }
 }
 
 impl Visitor<'_> for SynVisitor<'_> {
@@ -150,7 +163,7 @@ impl Visitor<'_> for SynVisitor<'_> {
             ExprTempl::Use(templ) => {
                 match templ.value {
                     UseValue::Tree(_, _) => self.stack_mut().push(StmtTempl::Scalar(Scalar::Use(templ))),
-                    UseValue::LitStr(lit_str) => self.import(&lit_str)?,
+                    UseValue::Alias(alias) => self.import_aliased(alias)?,
                 }
             },
 

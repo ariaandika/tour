@@ -13,7 +13,7 @@ pub fn size_hint(templ: &Template) -> Result<(usize, Option<usize>)> {
 }
 
 pub fn size_hint_block(templ: &Template, block: &Ident) -> Result<(usize, Option<usize>)> {
-    Visitor { templ }.visit_stmts(&templ.get_block(block)?.stmts)
+    Visitor { templ }.visit_stmts(&templ.try_block(block)?.stmts)
 }
 
 struct Visitor<'a> {
@@ -35,7 +35,18 @@ impl Visitor<'_> {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static(source, _) => (source.len(), Some(source.len())),
                 Scalar::Render(RenderTempl { value, .. }) => match value {
-                    RenderValue::Path(path) => self.visit_stmts(&self.templ.get_block(path.require_ident()?)?.stmts)?,
+                    RenderValue::Path(path) => {
+                        let target = match path.get_ident() {
+                            Some(id) => match self.templ.get_block(id) {
+                                Some(block) => &block.stmts,
+                                None => self.templ.get_import_by_alias(path)?.templ().stmts()?,
+                            },
+                            None => {
+                                self.templ.get_import_by_alias(path)?.templ().stmts()?
+                            },
+                        };
+                        self.visit_stmts(target)?
+                    },
                     RenderValue::LitStr(_lit_str) => {
                         // TODO: calculate imported template size_hint
                         (0, None)

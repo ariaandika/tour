@@ -64,14 +64,14 @@ impl Parse for ExprTempl {
     }
 }
 
-/// `{{ layout "layout.html" }}`
+/// `{{ <layout | extends> "path" }}`
 pub struct LayoutTempl {
     #[allow(dead_code)]
     pub layout_token: kw::layout,
     pub path: LitStr,
 }
 
-/// `{{ block Body }}`
+/// `{{ [pub] [static] block <Ident> }}`
 pub struct BlockTempl {
     pub pub_token: Option<Token![pub]>,
     pub static_token: Option<Token![static]>,
@@ -80,8 +80,7 @@ pub struct BlockTempl {
     pub name: Ident,
 }
 
-/// `{{ render Body }}`
-/// `{{ render "layout/navbar.html" }}`
+/// `{{ render <<Ident> | <Path> | "path"> }}`
 pub struct RenderTempl {
     #[allow(dead_code)]
     pub render_token: kw::render,
@@ -93,7 +92,7 @@ pub enum RenderValue {
     LitStr(LitStr),
 }
 
-/// `{{ const NAME: &str = "deflect" }}`
+/// `{{ const <Ident>: <Ty> = "string" }}`
 pub struct ConstTempl {
     pub const_token: Token![const],
     pub ident: Ident,
@@ -104,19 +103,19 @@ pub struct ConstTempl {
     pub semi_token: Option<Token![;]>,
 }
 
-/// `{{ if admin }}`
+/// `{{ if <Expr> }}`
 pub struct IfTempl {
     pub if_token: Token![if],
     pub cond: Box<Expr>,
 }
 
-/// `{{ else if superuser }}`
+/// `{{ else [if <Expr>] }}`
 pub struct ElseTempl {
     pub else_token: Token![else],
     pub elif_branch: Option<(Token![if],Box<Expr>)>
 }
 
-/// `{{ for task in tasks }}`
+/// `{{ for <Pat> in <Expr> }}`
 pub struct ForTempl {
     pub for_token: Token![for],
     pub pat: Box<Pat>,
@@ -124,8 +123,7 @@ pub struct ForTempl {
     pub expr: Box<Expr>,
 }
 
-/// `{{ use crate::TimeDisplay }}`
-/// `{{ use "components/prelude.html" }}`
+/// `{{ use <<Path> | "path" as Ident> }}`
 pub struct UseTempl {
     pub use_token: Token![use],
     pub value: UseValue,
@@ -134,7 +132,14 @@ pub struct UseTempl {
 
 pub enum UseValue {
     Tree(Option<Token![::]>,UseTree),
-    LitStr(LitStr),
+    Alias(Alias),
+}
+
+pub struct Alias {
+    pub path: LitStr,
+    #[allow(unused)]
+    pub as_token: Token![as],
+    pub ident: Ident,
 }
 
 impl Parse for LayoutTempl {
@@ -235,10 +240,20 @@ impl Parse for UseTempl {
         Ok(Self {
             use_token: input.parse()?,
             value: match () {
-                _ if input.peek(LitStr) => input.parse().map(UseValue::LitStr)?,
+                _ if input.peek(LitStr) => input.parse().map(UseValue::Alias)?,
                 _ => UseValue::Tree(input.parse()?, input.parse()?),
             },
             semi_token: input.parse()?,
+        })
+    }
+}
+
+impl Parse for Alias {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            path: input.parse()?,
+            as_token: input.parse()?,
+            ident: input.parse()?,
         })
     }
 }

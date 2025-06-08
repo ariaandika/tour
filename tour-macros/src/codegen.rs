@@ -27,7 +27,7 @@ pub fn generate_block(templ: &Template, block: &Ident) -> Result<TokenStream> {
     };
 
     let mut visitor = Visitor::default();
-    visitor.visit_stmts(&templ.get_block(block)?.stmts, &shared)?;
+    visitor.visit_stmts(&templ.try_block(block)?.stmts, &shared)?;
 
     Ok(visitor.tokens)
 }
@@ -104,8 +104,26 @@ impl Visitor {
                     });
                 },
                 Scalar::Render(RenderTempl { value, .. }) => match value {
-                    RenderValue::Path(path) => {
-                        self.visit_stmts(&shared.templ.get_block(path.require_ident()?)?.stmts, shared)?
+                    RenderValue::Path(path) => match path.get_ident() {
+                        Some(id) => match shared.templ.get_block(id) {
+                            Some(block) => {
+                                self.visit_stmts(&block.stmts, shared)?
+                            },
+                            None => {
+                                let import = shared.templ.get_import_by_alias(path)?;
+                                let name = import.generate_name();
+                                self.tokens.extend(quote! {
+                                    #TemplDisplay::display(&#name(self), &mut *writer)?;
+                                });
+                            },
+                        },
+                        None => {
+                            let import = shared.templ.get_import_by_alias(path)?;
+                            let name = import.generate_name();
+                            self.tokens.extend(quote! {
+                                #TemplDisplay::display(&#name(self), &mut *writer)?;
+                            });
+                        },
                     },
                     RenderValue::LitStr(lit_str) => {
                         let import = shared.templ.get_import_by_path(lit_str)?;
@@ -113,8 +131,6 @@ impl Visitor {
                         self.tokens.extend(quote! {
                             #TemplDisplay::display(&#name(self), &mut *writer)?;
                         });
-                        // let template = generate_typed_template(name, inner, body);
-                        // self.visit_stmts(shared.templ.get_import_by_path(lit_str)?.templ().stmts()?, shared)?
                     },
                 },
                 Scalar::Expr(expr, delim) => {
@@ -131,7 +147,7 @@ impl Visitor {
                         tree.to_tokens(&mut self.tokens);
                         templ.semi_token.unwrap_or_default().to_tokens(&mut self.tokens);
                     },
-                    UseValue::LitStr(_lit_str) => unreachable!("use alias statement should be discarded")
+                    UseValue::Alias(_) => unreachable!("use alias statement should be discarded")
                 },
                 Scalar::Const(templ) => {
                     templ.const_token.to_tokens(&mut self.tokens);

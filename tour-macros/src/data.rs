@@ -140,18 +140,17 @@ impl Template {
     /// Returns selected block if any, otherwise return all statements.
     pub fn stmts(&self) -> Result<&[StmtTempl]> {
         match self.meta.block.as_ref() {
-            Some(block) => Ok(&self.get_block(block)?.stmts),
+            Some(block) => Ok(&self.try_block(block)?.stmts),
             None => Ok(self.file.stmts()),
         }
     }
 
-    #[allow(unused, reason = "used later")]
     pub fn get_import_by_alias(&self, key: &Path) -> Result<&Import> {
         self.file
             .imports
             .iter()
             .find(|&e|e == key)
-            .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",fmt_path(key))))
+            .ok_or_else(|| Error::new(key.span(), format!("cannot find block/aliased template `{}`",fmt_path(key))))
     }
 
     pub fn get_import_by_path(&self, key: &LitStr) -> Result<&Import> {
@@ -163,11 +162,15 @@ impl Template {
             .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",path)))
     }
 
-    pub fn get_block(&self, block: &Ident) -> Result<&BlockContent> {
+    pub fn get_block(&self, block: &Ident) -> Option<&BlockContent> {
         self.file
             .blocks
             .iter()
             .find(|e| &e.templ.name == block)
+    }
+
+    pub fn try_block(&self, block: &Ident) -> Result<&BlockContent> {
+        self.get_block(block)
             .ok_or_else(|| Error::new(block.span(), format!("cannot find block `{block}`")))
     }
 

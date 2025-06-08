@@ -38,3 +38,16 @@ fn import() {
     );
 }
 
+#[test]
+fn import_alias() {
+    #[derive(Template)]
+    #[template(path = "/tour/tests/layout/alias.html")]
+    struct Import;
+
+    let templ = Import;
+    assert_eq!(
+        templ.render().unwrap(),
+        "\n<nav>Navbar</nav>\n\n<nav>Navbar</nav>\n\n"
+    );
+}
+
