@@ -4,8 +4,8 @@ use syn::*;
 use tour_core::Delimiter;
 
 use crate::{
-    data::Template,
     common::{TemplDisplay, TemplWrite},
+    data::{AliasKind, Template},
     syntax::{RenderTempl, RenderValue, UseValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
@@ -104,29 +104,17 @@ impl Visitor {
                     });
                 },
                 Scalar::Render(RenderTempl { value, .. }) => match value {
-                    RenderValue::Path(path) => match path.get_ident() {
-                        Some(id) => match shared.templ.get_block(id) {
-                            Some(block) => {
-                                self.visit_stmts(&block.stmts, shared)?
-                            },
-                            None => {
-                                let import = shared.templ.get_import_by_alias(path)?;
-                                let name = import.generate_name();
-                                self.tokens.extend(quote! {
-                                    #TemplDisplay::display(&#name(self), &mut *writer)?;
-                                });
-                            },
-                        },
-                        None => {
-                            let import = shared.templ.get_import_by_alias(path)?;
+                    RenderValue::Path(path) => match shared.templ.resolve_alias(path)? {
+                        AliasKind::Block(block) => self.visit_stmts(&block.stmts, shared)?,
+                        AliasKind::Import(import) => {
                             let name = import.generate_name();
                             self.tokens.extend(quote! {
                                 #TemplDisplay::display(&#name(self), &mut *writer)?;
                             });
-                        },
+                        }
                     },
                     RenderValue::LitStr(lit_str) => {
-                        let import = shared.templ.get_import_by_path(lit_str)?;
+                        let import = shared.templ.try_import_by_path(lit_str)?;
                         let name = import.generate_name();
                         self.tokens.extend(quote! {
                             #TemplDisplay::display(&#name(self), &mut *writer)?;

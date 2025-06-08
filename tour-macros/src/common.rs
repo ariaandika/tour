@@ -163,8 +163,11 @@ macro_rules! error {
         panic!("{:?}", me);
         me
     }};
+    (.$s:expr, $($tt:tt)*) => {
+        if $s { crate::common::error!($($tt)*) }
+    };
     (?$s:expr, $($tt:tt)*) => {
-        match $s { Some(ok) => ok, None => crate::shared::error!($($tt)*), }
+        match $s { Some(ok) => ok, None => crate::common::error!($($tt)*), }
     };
     (!$s:expr, $($tt:tt)*) => {
         match $s { Ok(ok) => ok, Err(err) => crate::common::error!(@proc_macro2::Span::call_site(), $($tt)*, err), }

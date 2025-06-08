@@ -1,7 +1,7 @@
 use syn::*;
 
 use crate::{
-    data::Template,
+    data::{AliasKind, Template},
     syntax::{RenderTempl, RenderValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
@@ -35,20 +35,12 @@ impl Visitor<'_> {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static(source, _) => (source.len(), Some(source.len())),
                 Scalar::Render(RenderTempl { value, .. }) => match value {
-                    RenderValue::Path(path) => {
-                        let target = match path.get_ident() {
-                            Some(id) => match self.templ.get_block(id) {
-                                Some(block) => &block.stmts,
-                                None => self.templ.get_import_by_alias(path)?.templ().stmts()?,
-                            },
-                            None => {
-                                self.templ.get_import_by_alias(path)?.templ().stmts()?
-                            },
-                        };
-                        self.visit_stmts(target)?
+                    RenderValue::Path(path) => match self.templ.resolve_alias(path)? {
+                        AliasKind::Block(block) => self.visit_stmts(&block.stmts)?,
+                        AliasKind::Import(import) => self.visit_stmts(import.templ().stmts()?)?,
                     },
                     RenderValue::LitStr(lit_str) => {
-                        self.visit_stmts(self.templ.get_import_by_path(lit_str)?.templ().stmts()?)?
+                        self.visit_stmts(self.templ.try_import_by_path(lit_str)?.templ().stmts()?)?
                     }
                 },
                 Scalar::Yield | Scalar::Expr(_, _) | Scalar::Use(_) | Scalar::Const(_) => (0, None),

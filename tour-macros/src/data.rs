@@ -1,6 +1,6 @@
 use std::{borrow::Cow, fs::read_to_string};
 use quote::format_ident;
-use syn::{spanned::Spanned, *};
+use syn::*;
 
 use crate::{
     common::{Reload, error, path},
@@ -145,15 +145,47 @@ impl Template {
         }
     }
 
-    pub fn get_import_by_alias(&self, key: &Path) -> Result<&Import> {
+    /// This will look for a block, imported template, and block inside the imported template.
+    pub fn resolve_alias<'me>(&'me self, key: &Path) -> Result<AliasKind<'me>> {
+        let mut iter = key.segments.iter();
+        let d1 = &error!(?iter.next(),"path empty").ident;
+
+        if let Some(block) = self.get_block(d1) {
+            return Ok(AliasKind::Block(block))
+        }
+
+        let import = self.try_import_by_alias(d1)?;
+
+        let Some(d2) = iter.next() else {
+            return self.try_import_by_alias(d1).map(AliasKind::Import);
+        };
+
+        let d2 = &d2.ident;
+        error!(.iter.next().is_some(),"only 2 level path is supported");
+
+        match import.templ().get_block(d2) {
+            Some(_block) => todo!("how to render, block from other template ?"),// Ok(AliasKind::Import(())),
+            None => error!("cannot find block `{d2}` in `{d1}`"),
+        }
+    }
+
+    fn get_import_by_alias(&self, key: &Ident) -> Option<&Import> {
         self.file
             .imports
             .iter()
             .find(|&e|e == key)
-            .ok_or_else(|| Error::new(key.span(), format!("cannot find block/aliased template `{}`",fmt_path(key))))
     }
 
-    pub fn get_import_by_path(&self, key: &LitStr) -> Result<&Import> {
+    fn try_import_by_alias(&self, key: &Ident) -> Result<&Import> {
+        self.get_import_by_alias(key).ok_or_else(|| {
+            Error::new(
+                key.span(),
+                format!("cannot find block/import `{key}`"),
+            )
+        })
+    }
+
+    pub fn try_import_by_path(&self, key: &LitStr) -> Result<&Import> {
         let path = key.value();
         self.file
             .imports
@@ -162,7 +194,7 @@ impl Template {
             .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",path)))
     }
 
-    pub fn get_block(&self, block: &Ident) -> Option<&BlockContent> {
+    fn get_block(&self, block: &Ident) -> Option<&BlockContent> {
         self.file
             .blocks
             .iter()
@@ -209,15 +241,6 @@ impl Template {
     }
 }
 
-fn fmt_path(path: &Path) -> String {
-    use std::fmt::Write;
-    let mut s = String::new();
-    for seg in &path.segments {
-        let _ = write!(s, "{}", seg.ident);
-    }
-    s
-}
-
 // ===== ImportKey =====
 
 pub struct Import {
@@ -255,13 +278,19 @@ impl PartialEq<str> for Import {
     }
 }
 
-impl PartialEq<Path> for Import {
-    fn eq(&self, other: &Path) -> bool {
-        let other = other.segments.first().map(|e|&e.ident);
-        match (self.alias.as_ref(), other) {
-            (Some(me), Some(other)) => me == other,
-            _ => false,
+impl PartialEq<Ident> for Import {
+    fn eq(&self, other: &Ident) -> bool {
+        match self.alias.as_ref() {
+            Some(id) => id == other,
+            None => false,
         }
     }
+}
+
+// ===== AliasKind =====
+
+pub enum AliasKind<'a> {
+    Block(&'a BlockContent),
+    Import(&'a Import),
 }
 
