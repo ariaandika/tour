@@ -2,7 +2,10 @@
 use syn::*;
 use tour_core::{Delimiter, ParseError, Parser, Result, Visitor};
 
-use crate::{data::{BlockContent, File, Metadata, Template}, syntax::*};
+use crate::{
+    data::{BlockContent, File, Import, Metadata, Template},
+    syntax::*,
+};
 
 macro_rules! error {
     ($($tt:tt)*) => {
@@ -16,30 +19,6 @@ pub fn generate_file(meta: &Metadata) -> syn::Result<File> {
 
     let SynVisitor { layout, imports, blocks, statics, root, .. } = ok;
     Ok(File::new(layout, imports, blocks, statics, root))
-}
-
-// ===== ImportKey =====
-
-pub struct Import {
-    path: Box<str>,
-    alias: Option<Ident>,
-    pub templ: Template,
-}
-
-impl PartialEq<str> for Import {
-    fn eq(&self, other: &str) -> bool {
-        self.path.as_ref() == other
-    }
-}
-
-impl PartialEq<Path> for Import {
-    fn eq(&self, other: &Path) -> bool {
-        let other = other.segments.first().map(|e|&e.ident);
-        match (self.alias.as_ref(), other) {
-            (Some(me), Some(other)) => me == other,
-            _ => false,
-        }
-    }
 }
 
 // ===== Nested Syntax =====
@@ -131,11 +110,7 @@ impl<'a> SynVisitor<'a> {
                 Ok(ok) => ok,
                 Err(err) => return Err(ParseError::Generic(err.to_string())),
             };
-            self.imports.push(Import {
-                path,
-                alias: None,
-                templ: Template::new(meta, file),
-            });
+            self.imports.push(Import::new(path, None, Template::new(meta, file)));
         }
         Ok(())
     }

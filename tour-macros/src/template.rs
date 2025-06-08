@@ -49,6 +49,24 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
         Ok(())
     };
 
+    let imports = {
+        let mut imports = quote! {};
+        for import in templ.imports() {
+            let templ = import.templ();
+            let body = codegen::generate(templ)?;
+            let include = generate::include_str_source(templ);
+            let sources = generate::sources(templ);
+            let name = import.generate_name();
+            let body = quote! {
+                #include
+                #(#sources)*
+                #body
+                Ok(())
+            };
+            imports.extend(codegen::generate_typed_template(name, quote! { &'a #ident }, body));
+        }
+        imports
+    };
     let blocks = BlockVisitor::generate(&templ)?;
     let mut size_hint = sizehint::size_hint(&templ)?;
     let (meta,file) = templ.into_parts();
@@ -63,33 +81,17 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
                 .into_iter()
                 .chain(visitor.names)
                 .fold(quote!(self), |acc, n| quote!(#n(#acc)));
+            let body = quote! {
+                #destructor
+                #main
+            };
 
             size_hint = sizehint::add_size_hint(size_hint, visitor.size_hint);
 
-            let main = quote! {
-                struct #main_name<'a>(&'a #ident);
+            let mut main = codegen::generate_typed_template(main_name, quote! { &'a #ident }, body);
+            main.extend(layouts);
 
-                #[automatically_derived]
-                impl std::ops::Deref for #main_name<'_> {
-                    type Target = #ident;
-
-                    fn deref(&self) -> &Self::Target {
-                        self.0
-                    }
-                }
-
-                #[automatically_derived]
-                impl #TemplDisplay for #main_name<'_> {
-                    fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                        #destructor
-                        #main
-                    }
-                }
-
-                #layouts
-            };
-
-            (main,quote! { #TemplDisplay::display(&#fold, writer) })
+            (main, quote! { #TemplDisplay::display(&#fold, writer) })
         },
         None => {
             let destructor = genutil::destructor(&data, quote! { Self }, quote! { self });
@@ -123,6 +125,8 @@ pub fn template(input: DeriveInput) -> Result<TokenStream> {
             }
 
             #main
+
+            #imports
         };
     })
 }
@@ -266,32 +270,13 @@ impl LayoutVisitor {
         self.size_hint = sizehint::add_size_hint(self.size_hint, size_hint);
 
         let name = self.generate_name(&templ);
-        let nested_layout = match templ.into_layout() {
-            Some(layout) => self.visit_layout(layout, &name)?,
-            None => quote! { },
+        let mut template = codegen::generate_typed_template(&name, quote! { #inner<'a> }, &body);
+
+        if let Some(layout) = templ.into_layout() {
+            self.visit_layout(layout, &name)?.to_tokens(&mut template);
         };
 
-        Ok(quote! {
-            struct #name<'a>(#inner<'a>);
-
-            #[automatically_derived]
-            impl<'a> std::ops::Deref for #name<'a> {
-                type Target = #inner<'a>;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.0
-                }
-            }
-
-            #[automatically_derived]
-            impl #TemplDisplay for #name<'_> {
-                fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
-                    #body
-                }
-            }
-
-            #nested_layout
-        })
+        Ok(template)
     }
 }
 

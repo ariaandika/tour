@@ -1,11 +1,12 @@
 use std::{borrow::Cow, fs::read_to_string};
+use quote::format_ident;
 use syn::{spanned::Spanned, *};
 
 use crate::{
     common::{Reload, error, path},
     config::Config,
     syntax::{BlockTempl, LayoutTempl},
-    visitor::{Import, StmtTempl},
+    visitor::StmtTempl,
 };
 
 /// Extra information declared outside template file.
@@ -145,22 +146,20 @@ impl Template {
     }
 
     #[allow(unused, reason = "used later")]
-    pub fn get_import_by_alias(&self, key: &Path) -> Result<&Template> {
+    pub fn get_import_by_alias(&self, key: &Path) -> Result<&Import> {
         self.file
             .imports
             .iter()
             .find(|&e|e == key)
-            .map(|e|&e.templ)
             .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",fmt_path(key))))
     }
 
-    pub fn get_import_by_path(&self, key: &LitStr) -> Result<&Template> {
+    pub fn get_import_by_path(&self, key: &LitStr) -> Result<&Import> {
         let path = key.value();
         self.file
             .imports
             .iter()
             .find(|&e|e == &*path)
-            .map(|e|&e.templ)
             .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",path)))
     }
 
@@ -189,6 +188,10 @@ impl Template {
         &self.file.blocks
     }
 
+    pub fn imports(&self) -> &[Import] {
+        &self.file.imports
+    }
+
     /// Returns `true` if template is a file, not inlined.
     pub fn is_file(&self) -> bool {
         self.meta.is_file()
@@ -210,5 +213,52 @@ fn fmt_path(path: &Path) -> String {
         let _ = write!(s, "{}", seg.ident);
     }
     s
+}
+
+// ===== ImportKey =====
+
+pub struct Import {
+    path: Box<str>,
+    alias: Option<Ident>,
+    templ: Template,
+}
+
+impl Import {
+    pub fn new(path: Box<str>, alias: Option<Ident>, templ: Template) -> Self {
+        Self { path, alias, templ }
+    }
+
+    pub fn templ(&self) -> &Template {
+        &self.templ
+    }
+
+    pub fn generate_name(&self) -> Ident {
+        match &self.alias {
+            Some(name) => format_ident!("Import{name}"),
+            None => {
+                let suffix = std::path::Path::new(&*self.path)
+                    .file_stem()
+                    .and_then(|e|e.to_str())
+                    .unwrap_or("OsFile");
+                format_ident!("Import{suffix}")
+            },
+        }
+    }
+}
+
+impl PartialEq<str> for Import {
+    fn eq(&self, other: &str) -> bool {
+        self.path.as_ref() == other
+    }
+}
+
+impl PartialEq<Path> for Import {
+    fn eq(&self, other: &Path) -> bool {
+        let other = other.segments.first().map(|e|&e.ident);
+        match (self.alias.as_ref(), other) {
+            (Some(me), Some(other)) => me == other,
+            _ => false,
+        }
+    }
 }
 

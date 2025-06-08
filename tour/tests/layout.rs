@@ -26,7 +26,6 @@ fn nested_layout() {
 }
 
 #[test]
-#[ignore = "later"]
 fn import() {
     #[derive(Template)]
     #[template(path = "/tour/tests/layout/import.html")]
@@ -35,7 +34,7 @@ fn import() {
     let templ = Import;
     assert_eq!(
         templ.render().unwrap(),
-        "<nav>Navbar</nav>\n\n"
+        "<nav>Navbar</nav>\n\n<nav>Navbar</nav>\n\n"
     );
 }
 

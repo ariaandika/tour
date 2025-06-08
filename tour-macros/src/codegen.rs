@@ -5,7 +5,7 @@ use tour_core::Delimiter;
 
 use crate::{
     data::Template,
-    common::TemplDisplay,
+    common::{TemplDisplay, TemplWrite},
     syntax::{RenderTempl, RenderValue, UseValue},
     visitor::{Scalar, Scope, StmtTempl},
 };
@@ -30,6 +30,35 @@ pub fn generate_block(templ: &Template, block: &Ident) -> Result<TokenStream> {
     visitor.visit_stmts(&templ.get_block(block)?.stmts, &shared)?;
 
     Ok(visitor.tokens)
+}
+
+/// Generate new wrapper type for external template.
+///
+/// `inner` should declare their own lifetime requirements.
+///
+/// Lifetime `'a` is available.
+///
+/// `Body<'a>` or `&'a Body`
+pub fn generate_typed_template(name: impl ToTokens, inner: impl ToTokens, body: impl ToTokens) -> TokenStream {
+    quote! {
+        struct #name<'a>(#inner);
+
+        #[automatically_derived]
+        impl<'a> std::ops::Deref for #name<'a> {
+            type Target = #inner;
+
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        #[automatically_derived]
+        impl #TemplDisplay for #name<'_> {
+            fn display(&self, writer: &mut impl #TemplWrite) -> ::tour::Result<()> {
+                #body
+            }
+        }
+    }
 }
 
 struct Shared<'a> {
@@ -79,7 +108,13 @@ impl Visitor {
                         self.visit_stmts(&shared.templ.get_block(path.require_ident()?)?.stmts, shared)?
                     },
                     RenderValue::LitStr(lit_str) => {
-                        self.visit_stmts(shared.templ.get_import_by_path(lit_str)?.stmts()?, shared)?
+                        let import = shared.templ.get_import_by_path(lit_str)?;
+                        let name = import.generate_name();
+                        self.tokens.extend(quote! {
+                            #TemplDisplay::display(&#name(self), &mut *writer)?;
+                        });
+                        // let template = generate_typed_template(name, inner, body);
+                        // self.visit_stmts(shared.templ.get_import_by_path(lit_str)?.templ().stmts()?, shared)?
                     },
                 },
                 Scalar::Expr(expr, delim) => {
