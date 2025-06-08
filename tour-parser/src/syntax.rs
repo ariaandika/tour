@@ -1,106 +1,108 @@
-//! parse expression in template
+//! Syntax definition for template expression.
 //!
-//! this module provide parsing any possibles
-//! expression through [`Parse`] implementation of [`ExprTempl`]
+//! This only syntax definition for partial expression like `{{ if user.is_admin() }}`.
+//!
+//! For full ast declaration, see [`ast`][super::ast].
 use syn::{
     ext::IdentExt as _,
     parse::{Parse, ParseStream},
     *,
 };
 
-/// template expressions
-pub enum ExprTempl {
+/// Template statments.
+pub enum StmtSyn {
     // ===== Externals =====
 
-    /// `{{ <layout | extends> "path" }}`
+    /// `{{ <layout | extends> <"path"> }}`
     Layout(LayoutTempl),
-    /// `{{ use <<Path> | "path" as Ident> }}`
+    /// `{{ use <"path"> as <Ident> }}`
     Use(UseTempl),
-    /// `{{ render <<Ident> | <Path> | "path"> }}`
+    /// `{{ render <<Ident> | "path"> [block <Ident>] }}`
     Render(RenderTempl),
+
+    // ===== Scoped =====
+
+    /// `{{ [pub] [static] block <Ident> }}`
+    Block(BlockTempl),
+    /// `{{ if <Expr> }}`
+    If(IfTempl),
+    /// `{{ else [if <Expr>] }}`
+    Else(ElseTempl),
+    /// `{{ for <Pat> in <Expr> }}`
+    For(ForTempl),
+    /// `{{ endblock }}`
+    Endblock(kw::endblock),
+    /// `{{ endif }}`
+    EndIf(kw::endif),
+    /// `{{ endfor }}`
+    EndFor(kw::endfor),
 
     // ===== Internals =====
 
     /// `{{ yield }}`
     Yield(Token![yield]),
-    /// `{{ [pub] [static] block <Ident> }}`
-    Block(BlockTempl),
-    /// `{{ endblock }}`
-    Endblock(kw::endblock),
+    /// `{{ <ItemTempl> }}`
+    Item(Box<ItemTempl>),
     /// `{{ <Expr> }}`
     Expr(Box<Expr>),
-    /// `{{ const <Ident>: <Ty> = "string" }}`
-    Const(ConstTempl),
-    /// `{{ if <Expr> }}`
-    If(IfTempl),
-    /// `{{ else [if <Expr>] }}`
-    Else(ElseTempl),
-    /// `{{ endif }}`
-    EndIf(kw::endif),
-    /// `{{ for <Pat> in <Expr> }}`
-    For(ForTempl),
-    /// `{{ endfor }}`
-    EndFor(kw::endfor),
 }
 
-impl Parse for ExprTempl {
+impl Parse for StmtSyn {
     fn parse(input: ParseStream) -> Result<Self> {
         match () {
             _ if input.peek(kw::layout) => input.parse().map(Self::Layout),
             _ if input.peek(kw::extends) => input.parse().map(Self::Layout),
-            _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
-            _ if BlockTempl::peek(input) => input.parse().map(Self::Block),
-            _ if input.peek(kw::endblock) => input.parse().map(Self::Endblock),
+            _ if UseTempl::peek(input) => input.parse().map(Self::Use),
             _ if input.peek(kw::render) => input.parse().map(Self::Render),
-            _ if input.peek(Token![const]) => input.parse().map(Self::Const),
+
+            _ if BlockTempl::peek(input) => input.parse().map(Self::Block),
             _ if input.peek(Token![if]) => input.parse().map(Self::If),
             _ if input.peek(Token![else]) => input.parse().map(Self::Else),
-            _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
             _ if input.peek(Token![for]) => input.parse().map(Self::For),
+            _ if input.peek(kw::endblock) => input.parse().map(Self::Endblock),
+            _ if input.peek(kw::endif) => input.parse().map(Self::EndIf),
             _ if input.peek(kw::endfor) => input.parse().map(Self::EndFor),
-            _ if input.peek(Token![use]) => input.parse().map(Self::Use),
+
+            _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
+            _ if ItemTempl::peek(input) => input.parse().map(Self::Item),
             _ => input.parse().map(Self::Expr),
         }
     }
 }
 
-/// `{{ <layout | extends> "path" }}`
+/// `{{ <layout | extends> <"path"> }}`
 pub struct LayoutTempl {
-    #[allow(dead_code)]
     pub layout_token: kw::layout,
     pub path: LitStr,
+}
+
+/// `{{ use <"path"> as <Ident> }}`
+pub struct UseTempl {
+    pub use_token: Token![use],
+    pub path: LitStr,
+    pub as_token: Token![as],
+    pub ident: Ident,
+}
+
+/// `{{ render <<Ident> | "path"> [block <Ident>] }}`
+pub struct RenderTempl {
+    pub render_token: kw::render,
+    pub value: RenderValue,
+    pub block: Option<(kw::block,Ident)>
+}
+
+/// `<Ident> | "path"`
+pub enum RenderValue {
+    Ident(Ident),
+    Path(LitStr),
 }
 
 /// `{{ [pub] [static] block <Ident> }}`
 pub struct BlockTempl {
     pub pub_token: Option<Token![pub]>,
     pub static_token: Option<Token![static]>,
-    #[allow(unused)]
     pub block_token: kw::block,
     pub name: Ident,
-}
-
-/// `{{ render <<Ident> | <Path> | "path"> }}`
-pub struct RenderTempl {
-    #[allow(dead_code)]
-    pub render_token: kw::render,
-    pub value: RenderValue,
-}
-
-pub enum RenderValue {
-    Path(Path),
-    LitStr(LitStr),
-}
-
-/// `{{ const <Ident>: <Ty> = "string" }}`
-pub struct ConstTempl {
-    pub const_token: Token![const],
-    pub ident: Ident,
-    pub colon_token: Token![:],
-    pub ty: Box<Type>,
-    pub eq: Token![=],
-    pub expr: Box<Expr>,
-    pub semi_token: Option<Token![;]>,
 }
 
 /// `{{ if <Expr> }}`
@@ -123,24 +125,13 @@ pub struct ForTempl {
     pub expr: Box<Expr>,
 }
 
-/// `{{ use <<Path> | "path" as Ident> }}`
-pub struct UseTempl {
-    pub use_token: Token![use],
-    pub value: UseValue,
-    pub semi_token: Option<Token![;]>,
+/// `{{ <ItemTempl> }}`
+pub enum ItemTempl {
+    Use(ItemUse),
+    Const(ItemConst),
 }
 
-pub enum UseValue {
-    Tree(Option<Token![::]>,UseTree),
-    Alias(Alias),
-}
-
-pub struct Alias {
-    pub path: LitStr,
-    #[allow(unused)]
-    pub as_token: Token![as],
-    pub ident: Ident,
-}
+// ===== Parse implementation =====
 
 impl Parse for LayoutTempl {
     fn parse(input: ParseStream) -> Result<Self> {
@@ -152,6 +143,48 @@ impl Parse for LayoutTempl {
             },
             path: input.parse()?,
         })
+    }
+}
+
+impl UseTempl {
+    pub fn peek(input: ParseStream) -> bool {
+        input.peek(Token![use]) && input.peek2(LitStr)
+    }
+}
+
+impl Parse for UseTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            use_token: input.parse()?,
+            path: input.parse()?,
+            as_token: input.parse()?,
+            ident: input.call(Ident::parse_any)?,
+        })
+    }
+}
+
+impl Parse for RenderTempl {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(Self {
+            render_token: input.parse()?,
+            value: input.parse()?,
+            block: if input.peek(kw::block) {
+                Some((input.parse()?,input.call(Ident::parse_any)?))
+            } else {
+                None
+            },
+        })
+    }
+}
+
+impl Parse for RenderValue {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let look = input.lookahead1();
+        match () {
+            _ if look.peek(LitStr) => input.parse().map(Self::Path),
+            _ if look.peek(Ident::peek_any) => input.call(Ident::parse_any).map(Self::Ident),
+            _ => Err(look.error()),
+        }
     }
 }
 
@@ -170,34 +203,7 @@ impl Parse for BlockTempl {
             pub_token: input.parse()?,
             static_token: input.parse()?,
             block_token: input.parse()?,
-            name: input.parse()?,
-        })
-    }
-}
-
-impl Parse for RenderTempl {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            render_token: input.parse()?,
-            value: match () {
-                _ if input.peek(LitStr) => input.parse().map(RenderValue::LitStr)?,
-                _ if input.peek(Ident) => input.parse().map(RenderValue::Path)?,
-                _ => input.call(Path::parse_mod_style).map(RenderValue::Path)?,
-            },
-        })
-    }
-}
-
-impl Parse for ConstTempl {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            const_token: input.parse()?,
-            ident: input.call(Ident::parse_any)?,
-            colon_token: input.parse()?,
-            ty: input.parse()?,
-            eq: input.parse()?,
-            expr: input.parse()?,
-            semi_token: input.parse()?,
+            name: input.call(Ident::parse_any)?,
         })
     }
 }
@@ -215,9 +221,10 @@ impl Parse for ElseTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             else_token: input.parse()?,
-            elif_branch: match input.peek(Token![if]) {
-                true => Some((input.parse()?,input.parse()?)),
-                false => None,
+            elif_branch: if input.peek(Token![if]) {
+                Some((input.parse()?,input.parse()?))
+            } else {
+                None
             },
         })
     }
@@ -235,26 +242,21 @@ impl Parse for ForTempl {
     }
 }
 
-impl Parse for UseTempl {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            use_token: input.parse()?,
-            value: match () {
-                _ if input.peek(LitStr) => input.parse().map(UseValue::Alias)?,
-                _ => UseValue::Tree(input.parse()?, input.parse()?),
-            },
-            semi_token: input.parse()?,
-        })
+impl ItemTempl {
+    fn peek(input: ParseStream) -> bool {
+        input.peek(Token![use]) ||
+        input.peek(Token![const])
     }
 }
 
-impl Parse for Alias {
+impl Parse for ItemTempl {
     fn parse(input: ParseStream) -> Result<Self> {
-        Ok(Self {
-            path: input.parse()?,
-            as_token: input.parse()?,
-            ident: input.parse()?,
-        })
+        let look = input.lookahead1();
+        match () {
+            _ if look.peek(Token![use]) => input.parse().map(Self::Use),
+            _ if look.peek(Token![const]) => input.parse().map(Self::Const),
+            _ => Err(look.error()),
+        }
     }
 }
 

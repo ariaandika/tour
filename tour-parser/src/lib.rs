@@ -1,4 +1,4 @@
-//! Macros for [`tour`][1] template
+//! Macros for [`tour`] template
 //!
 //! # `tour::Template` Trait
 //!
@@ -8,9 +8,9 @@
 //!
 //! # [`Metadata`]
 //!
-//! [`Metadata`] contains template identity that explicitly set by user.
+//! `Metadata` contains template identity that explicitly set by user.
 //!
-//! [`Metadata`] can be represented by:
+//! `Metadata` can be represented by:
 //!
 //! - [`Attribute`], e.g. `#[template(path = "index.html")]`
 //! - [`LayoutTempl`], e.g. `{{ layout "layout.html" }}`
@@ -19,14 +19,13 @@
 //!
 //! # [`File`]
 //!
-//! [`File`] contains the actual template content.
+//! `File` contains the actual template content.
 //!
-//! [`File`] can be created using [`Metadata`].
+//! `File` can be created using [`Metadata`].
 //!
 //! # Code generation
 //!
-//! For the `tour::Template` trait, code will be generated for `render_into()`,
-//! `render_block_into()`, `contains_block()`, `size_hint()` and `size_hint_block()`.
+//! For the `tour::Template` trait, code will be generated for the following methods:
 //!
 //! ## `render_into()`, `render_block_into()` and `contains_block()`
 //!
@@ -67,6 +66,7 @@
 //! - [`RenderTempl`], e.g. `{{ render "navbar.html" }}`
 //! - [`UseTempl`], e.g. `{{ use "button.html" as Button }}`
 //!
+//! [`tour`]: <https://docs.rs/tour>
 //! [`Template`]: data::Template
 //! [`Metadata`]: data::Metadata
 //! [`File`]: data::File
@@ -75,7 +75,7 @@
 //! [`RenderTempl`]: syntax::RenderTempl
 //! [`UseTempl`]: syntax::UseTempl
 
-mod syntax;
+pub mod syntax;
 mod common;
 
 // ===== Input =====
@@ -84,7 +84,7 @@ mod attribute;
 mod visitor;
 
 // ===== Data =====
-mod data;
+pub mod data;
 
 // ===== Output =====
 mod codegen;
