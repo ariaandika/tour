@@ -11,7 +11,7 @@ impl tour::TemplDisplay for Foo {
 }
 
 #[derive(Template)]
-#[template(root = "example/src/main.html")]
+#[template(path = "/example/src/main.html")]
 struct Page {
     id: i32,
     name: String,
