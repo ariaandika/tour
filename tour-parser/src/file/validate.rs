@@ -79,7 +79,7 @@ impl<'a> ValidateVisitor<'a> {
             Scope::If { stmts, else_branch, .. } => {
                 self.visit_stmts(stmts)?;
                 if let Some((_,scope)) = else_branch {
-                    self.visit_scope(scope);
+                    self.visit_scope(scope)?;
                 }
             },
             Scope::For { stmts, else_branch, .. } => {

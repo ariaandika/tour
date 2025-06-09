@@ -1,3 +1,4 @@
+//! Shared configuration.
 
 pub struct Config {
     templ_dir: Box<str>,

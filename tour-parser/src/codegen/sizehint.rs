@@ -17,6 +17,11 @@ impl<'a> Visitor<'a> {
         me.visit_stmts(templ.stmts())
     }
 
+    pub fn generate_block(templ: &'a Template, block: &syn::Ident) -> SizeHint {
+        let me = Self { templ };
+        me.visit_stmts(&templ.file().block(block).stmts)
+    }
+
     fn visit_stmts(&self, stmts: &[StmtTempl]) -> SizeHint {
         let mut size = (0,None);
         for stmt in stmts {
@@ -80,7 +85,7 @@ impl<'a> Visitor<'a> {
 }
 
 pub fn exact(len: usize) -> SizeHint {
-    (0,None)
+    (len,Some(len))
 }
 
 pub fn add(s1: SizeHint, s2: SizeHint) -> SizeHint {

@@ -1,3 +1,4 @@
+//! The [`Metadata`] struct.
 use std::{borrow::Cow, fs::read_to_string, rc::Rc};
 use syn::*;
 
@@ -23,21 +24,7 @@ pub struct Metadata {
 }
 
 impl Metadata {
-    pub(crate) fn new(
-        path: Rc<str>,
-        source: Option<Rc<str>>,
-        reload: Reload,
-        block: Option<Ident>,
-    ) -> Self {
-        Self {
-            path,
-            source,
-            reload,
-            block,
-        }
-    }
-
-    /// Create metadata by parsing [`Attribute`]s.
+    /// Create metadata by parsing [`Attribute`].
     pub fn from_attrs(attrs: &[Attribute], conf: &Config) -> Result<Metadata> {
         AttrVisitor::parse(attrs, conf)
     }
@@ -87,14 +74,17 @@ impl Metadata {
         std::path::Path::new(&*self.path).is_file()
     }
 
+    /// Returns selected block name, if any.
     pub fn block(&self) -> Option<&Ident> {
         self.block.as_ref()
     }
 
+    /// Returns template directory, if source is inlined, returns current dir.
     pub fn path(&self) -> &str {
         &self.path
     }
 
+    /// Returns [`Reload`] behavior.
     pub fn reload(&self) -> &Reload {
         &self.reload
     }

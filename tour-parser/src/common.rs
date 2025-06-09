@@ -1,3 +1,4 @@
+//! Common utility.
 
 // ===== Namespace =====
 
@@ -21,6 +22,7 @@ impl quote::ToTokens for TemplWrite {
 
 // ===== Constants =====
 
+/// Attribute namespace for derive macro.
 pub const DERIVE_ATTRIBUTE: &str = "template";
 
 /// Path resolution.

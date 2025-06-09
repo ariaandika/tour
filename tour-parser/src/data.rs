@@ -1,8 +1,9 @@
+//! The [`Template`] struct.
 use syn::*;
 
 use crate::{
     ast::StmtTempl,
-    file::{AliasKind, BlockContent, File, Import},
+    file::{BlockContent, File, Import},
     metadata::Metadata,
     syntax::LayoutTempl,
 };
@@ -36,22 +37,6 @@ impl Template {
     /// Returns selected block if any, otherwise return all statements.
     pub(crate) fn stmts(&self) -> &[StmtTempl] {
         self.try_stmts().expect("[BUG] validation missed, selected block missing")
-    }
-
-    fn get_import_by_alias(&self, key: &Ident) -> Option<&Import> {
-        self.file
-            .imports()
-            .iter()
-            .find(|&e|e == key)
-    }
-
-    fn try_import_by_alias(&self, key: &Ident) -> Result<&Import> {
-        self.get_import_by_alias(key).ok_or_else(|| {
-            Error::new(
-                key.span(),
-                format!("cannot find block/import `{key}`"),
-            )
-        })
     }
 
     pub fn try_import_by_path(&self, key: &LitStr) -> Result<&Import> {

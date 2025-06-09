@@ -1,3 +1,4 @@
+//! The [`File`] struct.
 use quote::format_ident;
 use std::rc::Rc;
 use syn::{Ident, LitStr, Result};

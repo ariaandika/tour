@@ -69,8 +69,8 @@
 //!
 //! [`tour`]: <https://docs.rs/tour>
 //! [`Template`]: data::Template
-//! [`Metadata`]: data::Metadata
-//! [`File`]: data::File
+//! [`Metadata`]: metadata::Metadata
+//! [`File`]: file::File
 //! [`Attribute`]: syn::Attribute
 //! [`LayoutTempl`]: syntax::LayoutTempl
 //! [`RenderTempl`]: syntax::RenderTempl

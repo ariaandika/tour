@@ -37,6 +37,19 @@ impl<'a> Visitor<'a> {
         });
     }
 
+    pub fn generate_block(templ: &'a Template, block: &Ident, input: &'a DeriveInput, tokens: &'a mut TokenStream) {
+        let mut me = Self { tokens, static_len: 0, };
+        let shared = Shared { templ, input };
+
+        me.gen_include_str(&shared);
+        me.gen_destructure(&shared);
+        me.gen_sources(&shared);
+        me.visit_stmts(&templ.file().block(block).stmts, &shared);
+        me.tokens.extend(quote! {
+            Ok(())
+        });
+    }
+
     fn gen_include_str(&mut self, shared: &Shared) {
         let path = shared.templ.meta().path();
         if std::path::Path::new(path).is_file() {
@@ -164,24 +177,24 @@ impl<'a> Visitor<'a> {
         match scope {
             Scope::Root { stmts } => {
                 token::Brace::default()
-                    .surround(&mut self.tokens, |tokens|{
+                    .surround(self.tokens, |tokens|{
                         let mut visitor = Visitor { tokens, static_len: self.static_len  };
                         visitor.visit_stmts(stmts, shared);
                         self.static_len = visitor.static_len;
                     });
             },
             Scope::If { templ, stmts, else_branch } => {
-                templ.if_token.to_tokens(&mut self.tokens);
-                templ.cond.to_tokens(&mut self.tokens);
+                templ.if_token.to_tokens(self.tokens);
+                templ.cond.to_tokens(self.tokens);
                 token::Brace::default()
-                    .surround(&mut self.tokens, |tokens|{
+                    .surround(self.tokens, |tokens|{
                         let mut visitor = Visitor { tokens, static_len: self.static_len  };
                         visitor.visit_stmts(stmts, shared);
                         self.static_len = visitor.static_len;
                     });
 
                 if let Some((else_token, else_scope)) = else_branch {
-                    else_token.to_tokens(&mut self.tokens);
+                    else_token.to_tokens(self.tokens);
                     self.visit_scope(else_scope, shared);
                 }
             },
@@ -192,13 +205,13 @@ impl<'a> Visitor<'a> {
                     let __for_expr = #expr;
                 });
 
-                templ.for_token.to_tokens(&mut self.tokens);
-                templ.pat.to_tokens(&mut self.tokens);
-                templ.in_token.to_tokens(&mut self.tokens);
-                format_ident!("__for_expr").to_tokens(&mut self.tokens);
+                templ.for_token.to_tokens(self.tokens);
+                templ.pat.to_tokens(self.tokens);
+                templ.in_token.to_tokens(self.tokens);
+                format_ident!("__for_expr").to_tokens(self.tokens);
 
                 token::Brace::default()
-                    .surround(&mut self.tokens, |tokens|{
+                    .surround(self.tokens, |tokens|{
                         let mut visitor = Visitor { tokens, static_len: self.static_len  };
                         visitor.visit_stmts(stmts, shared);
                         self.static_len = visitor.static_len;
