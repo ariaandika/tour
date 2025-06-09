@@ -107,6 +107,18 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
 
         // ===== size_hint_block() =====
 
+        let blocks = blocks
+            .iter()
+            .map(|block|{
+                let block_name = &block.templ.name;
+                (
+                    sizehint::Visitor::new(templ).calculate_block(block_name),
+                    block.templ.name.to_string()
+                )
+            })
+            .filter(|e|sizehint::is_empty(e.0))
+            .collect::<Vec<_>>();
+
         let prefix = quote! {
             fn size_hint_block(&self, block: &str) -> (usize,Option<usize>)
         };
@@ -114,13 +126,10 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
         brace_if(!blocks.is_empty(), prefix, trait_tokens, |tokens| {
             tokens.extend(quote! { match block });
             brace(tokens, |tokens| {
-                for block in blocks {
-                    let name = &block.templ.name;
-                    let name_str = name.to_string();
-                    tokens.extend(quote! { #name_str => });
+                for (size,name) in blocks {
+                    tokens.extend(quote! { #name => });
                     brace(tokens, |tokens| {
-                        sizehint::Visitor::new(templ)
-                            .generate_block(&block.templ.name, tokens);
+                        sizehint::generate(size, tokens);
                     });
                 }
                 tokens.extend(quote! { _ => (0,None), });

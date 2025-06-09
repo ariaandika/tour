@@ -36,11 +36,7 @@ impl<'a> Visitor<'a> {
     pub fn new(templ: &'a Template) -> Self {
         Self { templ }
     }
-
-    pub fn generate_block(&self, block: &syn::Ident, tokens: &mut TokenStream) {
-        generate(self.calculate_block(block), tokens);
-    }
-
+ 
     pub fn calculate(&self) -> SizeHint {
         self.visit_stmts(self.templ.stmts())
     }
