@@ -72,7 +72,11 @@ impl<'a> SynVisitor<'a> {
                 Ok(ok) => ok,
                 Err(err) => return Err(ParseError::Generic(err.to_string())),
             };
-            self.imports.push(Import::new(path, alias.cloned(), Template::new(meta, file)));
+            let templ = match Template::new(meta, file) {
+                Ok(ok) => ok,
+                Err(err) => error!("{err}"),
+            };
+            self.imports.push(Import::new(path, alias.cloned(), templ));
         }
 
         Ok(())

@@ -65,6 +65,13 @@ impl File {
         self.get_import_by_path(path).expect("[BUG] validation import rendering missed")
     }
 
+    pub(crate) fn resolve_id(&self, id: &Ident) -> AliasKind<'_> {
+        match self.get_block(id) {
+            Some(block) => AliasKind::Block(block),
+            None => AliasKind::Import(self.import_by_id(id)),
+        }
+    }
+
     /// Returns all statements.
     pub fn stmts(&self) -> &[StmtTempl] {
         &self.stmts

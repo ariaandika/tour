@@ -94,6 +94,10 @@ impl Metadata {
     pub fn path(&self) -> &str {
         &self.path
     }
+
+    pub fn reload(&self) -> &Reload {
+        &self.reload
+    }
 }
 
 // ===== Reload =====
