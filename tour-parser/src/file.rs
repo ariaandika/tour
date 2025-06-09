@@ -94,6 +94,10 @@ impl File {
     pub fn statics(&self) -> &[Rc<str>] {
         &self.statics
     }
+
+    pub fn layout(&self) -> Option<&LayoutTempl> {
+        self.layout.as_ref()
+    }
 }
 
 // ===== Import =====

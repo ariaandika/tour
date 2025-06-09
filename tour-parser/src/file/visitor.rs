@@ -110,8 +110,12 @@ impl Visitor<'_> for SynVisitor<'_> {
         match expr {
             // ===== external reference =====
 
-            StmtSyn::Layout(layout) => if self.layout.replace(layout).is_some() {
-                error!("cannot have 2 `extends` or `layout`")
+            StmtSyn::Layout(new_layout) => {
+                let path = new_layout.path.clone();
+                if self.layout.replace(new_layout).is_some() {
+                    error!("cannot have 2 `extends` or `layout`")
+                }
+                self.import(&path)?;
             },
             StmtSyn::Use(templ) => self.import_aliased(&templ)?,
             StmtSyn::Render(templ) => {

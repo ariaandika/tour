@@ -73,6 +73,10 @@ impl Template {
         &self.file
     }
 
+    pub fn layout(&self) -> Option<&LayoutTempl> {
+        self.file.layout()
+    }
+
     pub fn into_parts(self) -> (Metadata, File) {
         (self.meta,self.file)
     }
