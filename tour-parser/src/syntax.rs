@@ -65,8 +65,8 @@ impl Parse for StmtSyn {
             _ if input.peek(kw::endfor) => input.parse().map(Self::EndFor),
 
             _ if input.peek(Token![yield]) => input.parse().map(Self::Yield),
-            _ if ItemTempl::peek(input) => input.parse().map(Self::Item),
-            _ => input.parse().map(Self::Expr),
+            _ if ItemTempl::peek(input) => input.parse().map(Rc::new).map(Self::Item),
+            _ => input.parse().map(Rc::new).map(Self::Expr),
         }
     }
 }
@@ -213,7 +213,7 @@ impl Parse for IfTempl {
     fn parse(input: ParseStream) -> Result<Self> {
         Ok(Self {
             if_token: input.parse()?,
-            cond: input.parse()?,
+            cond: Rc::new(input.parse()?),
         })
     }
 }
@@ -223,7 +223,7 @@ impl Parse for ElseTempl {
         Ok(Self {
             else_token: input.parse()?,
             elif_branch: if input.peek(Token![if]) {
-                Some((input.parse()?,input.parse()?))
+                Some((input.parse()?,Rc::new(input.parse()?)))
             } else {
                 None
             },
@@ -238,7 +238,7 @@ impl Parse for ForTempl {
             // this Pat function that is used by syn parse
             pat: Rc::new(Pat::parse_multi_with_leading_vert(input)?),
             in_token: input.parse()?,
-            expr: input.parse()?,
+            expr: Rc::new(input.parse()?),
         })
     }
 }
