@@ -128,7 +128,7 @@ impl<'a> Visitor<'a> {
                         match shared.templ.file().resolve_id(id) {
                             AliasKind::Block(block) => self.visit_stmts(&block.stmts, shared),
                             AliasKind::Import(import) => {
-                                let name = import.generate_name();
+                                let name = &import.alias();
                                 self.tokens.extend(quote! {
                                     #TemplDisplay::display(&#name(self), &mut *writer)?;
                                 });
@@ -138,7 +138,7 @@ impl<'a> Visitor<'a> {
                     // Import directly, just render by type
                     RenderValue::Path(path) => {
                         let import = shared.templ.file().import_by_path(path);
-                        let name = import.generate_name();
+                        let name = import.alias();
                         self.tokens.extend(quote! {
                             #TemplDisplay::display(&#name(self), &mut *writer)?;
                         });

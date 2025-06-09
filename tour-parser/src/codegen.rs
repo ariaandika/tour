@@ -151,7 +151,18 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
     // ===== imports =====
 
     for import in templ.file().imports() {
-        let name = import.generate_name();
+        let name = import.alias();
+        let path = import
+            .templ()
+            .meta()
+            .path()
+            .trim_start_matches(path::cwd().to_str().unwrap_or(""))
+            .trim_start_matches("/");
+        let doc = if path.is_empty() {
+            quote! {}
+        } else {
+            quote! { #[doc = concat!(" ",#path)] }
+        };
 
         let mut generics = input.generics.clone();
         if !generics.lifetimes().any(|e|e.lifetime.ident=="tour_ref") {
@@ -160,6 +171,7 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
         let (t1,t2,_) = generics.split_for_impl();
 
         let input: DeriveInput = syn::parse_quote! {
+            #doc
             struct #name #t1 (&'tour_ref #ident #g2) #g3;
         };
         input.to_tokens(root);

@@ -1,5 +1,4 @@
 //! The [`File`] struct.
-use quote::format_ident;
 use std::rc::Rc;
 use syn::{Ident, LitStr, Result};
 
@@ -104,12 +103,12 @@ impl File {
 
 pub struct Import {
     path: Rc<str>,
-    alias: Option<Ident>,
+    alias: Ident,
     templ: Template,
 }
 
 impl Import {
-    pub(crate) fn new(path: Rc<str>, alias: Option<Ident>, templ: Template) -> Self {
+    pub(crate) fn new(path: Rc<str>, alias: Ident, templ: Template) -> Self {
         Self { path, alias, templ }
     }
 
@@ -117,20 +116,9 @@ impl Import {
         &self.templ
     }
 
-    pub fn generate_name(&self) -> Ident {
-        match &self.alias {
-            Some(name) => format_ident!("Import{name}"),
-            None => gen_name_by_path(&"Import", self.path.as_ref()),
-        }
+    pub fn alias(&self) -> &Ident {
+        &self.alias
     }
-}
-
-fn gen_name_by_path(prefix: &impl std::fmt::Display, path: &str) -> Ident {
-    let suffix = std::path::Path::new(path)
-        .file_stem()
-        .and_then(|e|e.to_str())
-        .unwrap_or("OsFile");
-    format_ident!("{prefix}{suffix}")
 }
 
 impl PartialEq<str> for Import {
@@ -141,10 +129,7 @@ impl PartialEq<str> for Import {
 
 impl PartialEq<Ident> for Import {
     fn eq(&self, other: &Ident) -> bool {
-        match self.alias.as_ref() {
-            Some(id) => id == other,
-            None => false,
-        }
+        &self.alias == other
     }
 }
 

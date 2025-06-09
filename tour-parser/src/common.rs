@@ -25,6 +25,13 @@ impl quote::ToTokens for TemplWrite {
 /// Attribute namespace for derive macro.
 pub const DERIVE_ATTRIBUTE: &str = "template";
 
+pub(crate) fn name() -> syn::Ident {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    static COUNTER: AtomicUsize = AtomicUsize::new(0);
+    let c = COUNTER.fetch_add(1, Ordering::Relaxed);
+    quote::format_ident!("TourNS{c}")
+}
+
 /// Path resolution.
 ///
 /// user given path:

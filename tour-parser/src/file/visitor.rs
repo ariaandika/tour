@@ -1,10 +1,9 @@
 //! [`Visitor`] implementation via syn
 use std::rc::Rc;
-use quote::format_ident;
 use syn::*;
 use tour_core::{Delimiter, ParseError, Parser, Result, Visitor};
 
-use super::{gen_name_by_path, BlockContent, File, Import};
+use super::{BlockContent, File, Import};
 use crate::{
     ast::{Scalar, Scope, StmtTempl},
     data::Template,
@@ -57,14 +56,14 @@ impl<'a> SynVisitor<'a> {
     }
 
     fn import(&mut self, lit_str: &LitStr) -> Result<()> {
-        self.import_only(lit_str, None)
+        self.import_only(lit_str, crate::common::name())
     }
 
     fn import_aliased(&mut self, alias: &UseTempl) -> Result<()> {
-        self.import_only(&alias.path, Some(&alias.ident))
+        self.import_only(&alias.path, alias.ident.clone())
     }
 
-    fn import_only(&mut self, path: &LitStr, alias: Option<&Ident>) -> Result<()> {
+    fn import_only(&mut self, path: &LitStr, alias: Ident) -> Result<()> {
         let path: Rc<str> = path.value().into();
 
         if !self.imports.iter().any(|e|e==&*path) {
@@ -73,15 +72,11 @@ impl<'a> SynVisitor<'a> {
                 Ok(ok) => ok,
                 Err(err) => return Err(ParseError::Generic(err.to_string())),
             };
-            let name = match alias {
-                Some(alias) => format_ident!("Import{alias}"),
-                None => gen_name_by_path(&"Import", path.as_ref()),
-            };
-            let templ = match Template::new(name, meta, file) {
+            let templ = match Template::new(alias.clone(), meta, file) {
                 Ok(ok) => ok,
                 Err(err) => error!("{err}"),
             };
-            self.imports.push(Import::new(path, alias.cloned(), templ));
+            self.imports.push(Import::new(path, alias, templ));
         }
 
         Ok(())
