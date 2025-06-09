@@ -152,22 +152,32 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
 
     for import in templ.file().imports() {
         let name = import.generate_name();
+
+        let mut generics = input.generics.clone();
+        if !generics.lifetimes().any(|e|e.lifetime.ident=="tour_ref") {
+            generics.params.push(syn::parse_quote!('tour_ref));
+        }
+        let (t1,t2,_) = generics.split_for_impl();
+
+        let input: DeriveInput = syn::parse_quote! {
+            struct #name #t1 (&'tour_ref #ident #g2) #g3;
+        };
+        input.to_tokens(root);
+
         root.extend(quote! {
-            struct #name<'a>(&'a #ident);
+            #[automatically_derived]
+            impl #t1 ::std::ops::Deref for #name #t2 #g3 {
+                type Target = #ident #g2;
+                fn deref(&self) -> &Self::Target {
+                    self.0
+                }
+            }
         });
 
-        // TODO: maybe create new data type contains reference only
-        let mut generics = input.generics.clone();
-        generics.params.push(syn::parse_quote!('a));
-        let input = DeriveInput {
-            attrs: vec![],
-            vis: Visibility::Inherited,
-            ident: name,
-            generics,
-            data: input.data.clone(),
-        };
         generate_templ(import.templ(), &input, root);
     }
+
+    // ===== include_str!() =====
 
     {
         let cwd = templ.meta().path();
