@@ -35,5 +35,6 @@ fn block_runtime() {
 
     let p = Block.render_block("Body").unwrap();
     assert_eq!(&p[..], "<h1>Title</h1>");
+
 }
 

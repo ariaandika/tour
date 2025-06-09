@@ -1,9 +1,15 @@
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
+use syn::Token;
+
 use crate::{
     ast::{Scalar, Scope, StmtTempl},
     data::Template,
     file::AliasKind,
     syntax::{RenderTempl, RenderValue},
 };
+
+use super::paren;
 
 pub type SizeHint = (usize, Option<usize>);
 
@@ -12,14 +18,40 @@ pub struct Visitor<'a> {
 }
 
 impl<'a> Visitor<'a> {
-    pub fn generate(templ: &'a Template) -> SizeHint {
-        let me = Self { templ };
-        me.visit_stmts(templ.stmts())
+    pub fn new(templ: &'a Template) -> Self {
+        Self { templ }
     }
 
-    pub fn generate_block(templ: &'a Template, block: &syn::Ident) -> SizeHint {
-        let me = Self { templ };
-        me.visit_stmts(&templ.file().block(block).stmts)
+    pub fn generate(&self, tokens: &mut TokenStream) {
+        paren(tokens, |tokens| {
+            let (min,max) = self.calculate();
+            min.to_tokens(tokens);
+            <Token![,]>::default().to_tokens(tokens);
+            match max {
+                Some(max) => tokens.extend(quote! { Some(#max) }),
+                None => tokens.extend(quote! { None }),
+            }
+        });
+    }
+
+    pub fn generate_block(&self, block: &syn::Ident, tokens: &mut TokenStream) {
+        paren(tokens, |tokens| {
+            let (min,max) = self.calculate_block(block);
+            min.to_tokens(tokens);
+            <Token![,]>::default().to_tokens(tokens);
+            match max {
+                Some(max) => tokens.extend(quote! { Some(#max) }),
+                None => tokens.extend(quote! { None }),
+            }
+        });
+    }
+
+    pub fn calculate(&self) -> SizeHint {
+        self.visit_stmts(self.templ.stmts())
+    }
+
+    pub fn calculate_block(&self, block: &syn::Ident) -> SizeHint {
+        self.visit_stmts(&self.templ.file().block(block).stmts)
     }
 
     fn visit_stmts(&self, stmts: &[StmtTempl]) -> SizeHint {

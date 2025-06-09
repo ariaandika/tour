@@ -14,14 +14,15 @@ use crate::{
 ///
 /// This template can represent either main template or layout.
 pub struct Template {
+    name: Ident,
     meta: Metadata,
     file: File,
 }
 
 impl Template {
     /// Create new [`Template`].
-    pub fn new(meta: Metadata, file: File) -> Result<Self> {
-        let me = Self { meta, file };
+    pub fn new(name: Ident, meta: Metadata, file: File) -> Result<Self> {
+        let me = Self { name, meta, file };
         me.try_stmts()?;
         Ok(me)
     }
@@ -58,6 +59,10 @@ impl Template {
     pub fn try_block(&self, block: &Ident) -> Result<&BlockContent> {
         self.get_block(block)
             .ok_or_else(|| Error::new(block.span(), format!("cannot find block `{block}`")))
+    }
+
+    pub fn name(&self) -> &Ident {
+        &self.name
     }
 
     pub fn meta(&self) -> &Metadata {

@@ -194,7 +194,7 @@ fn iteration_2_branch() {
 #[test]
 fn using() {
     #[derive(Template)]
-    #[template(source = "{{ use std::iter::once }}{? once(1).next() ?}")]
+    #[template(source = "{{ use std::iter::once; }}{? once(1).next() ?}")]
     struct Using;
 
     let templ = Using;

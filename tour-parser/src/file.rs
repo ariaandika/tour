@@ -116,15 +116,17 @@ impl Import {
     pub fn generate_name(&self) -> Ident {
         match &self.alias {
             Some(name) => format_ident!("Import{name}"),
-            None => {
-                let suffix = std::path::Path::new(&*self.path)
-                    .file_stem()
-                    .and_then(|e|e.to_str())
-                    .unwrap_or("OsFile");
-                format_ident!("Import{suffix}")
-            },
+            None => gen_name_by_path(&"Import", self.path.as_ref()),
         }
     }
+}
+
+fn gen_name_by_path(prefix: &impl std::fmt::Display, path: &str) -> Ident {
+    let suffix = std::path::Path::new(path)
+        .file_stem()
+        .and_then(|e|e.to_str())
+        .unwrap_or("OsFile");
+    format_ident!("{prefix}{suffix}")
 }
 
 impl PartialEq<str> for Import {

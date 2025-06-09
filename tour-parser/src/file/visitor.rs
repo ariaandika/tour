@@ -1,9 +1,10 @@
 //! [`Visitor`] implementation via syn
 use std::rc::Rc;
+use quote::format_ident;
 use syn::*;
 use tour_core::{Delimiter, ParseError, Parser, Result, Visitor};
 
-use super::{BlockContent, File, Import};
+use super::{gen_name_by_path, BlockContent, File, Import};
 use crate::{
     ast::{Scalar, Scope, StmtTempl},
     data::Template,
@@ -72,7 +73,11 @@ impl<'a> SynVisitor<'a> {
                 Ok(ok) => ok,
                 Err(err) => return Err(ParseError::Generic(err.to_string())),
             };
-            let templ = match Template::new(meta, file) {
+            let name = match alias {
+                Some(alias) => format_ident!("Import{alias}"),
+                None => gen_name_by_path(&"Import", path.as_ref()),
+            };
+            let templ = match Template::new(name, meta, file) {
                 Ok(ok) => ok,
                 Err(err) => error!("{err}"),
             };

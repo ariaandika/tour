@@ -27,45 +27,29 @@ impl<'a> Visitor<'a> {
     pub fn generate(templ: &'a Template, input: &'a DeriveInput, tokens: &'a mut TokenStream) {
         let mut me = Self { tokens, static_len: 0, };
         let shared = Shared { templ, input };
-
-        me.gen_include_str(&shared);
-        me.gen_destructure(&shared);
-        me.gen_sources(&shared);
-        me.visit_stmts(templ.stmts(), &shared);
-        me.tokens.extend(quote! {
-            Ok(())
-        });
+        me.gens(templ.stmts(), &shared);
     }
 
     pub fn generate_block(templ: &'a Template, block: &Ident, input: &'a DeriveInput, tokens: &'a mut TokenStream) {
         let mut me = Self { tokens, static_len: 0, };
         let shared = Shared { templ, input };
-
-        me.gen_include_str(&shared);
-        me.gen_destructure(&shared);
-        me.gen_sources(&shared);
-        me.visit_stmts(&templ.file().block(block).stmts, &shared);
-        me.tokens.extend(quote! {
-            Ok(())
-        });
+        me.gens(&templ.file().block(block).stmts, &shared);
     }
 
-    fn gen_include_str(&mut self, shared: &Shared) {
-        let path = shared.templ.meta().path();
-        if std::path::Path::new(path).is_file() {
-            self.tokens.extend(quote! {
-                const _: &str = include_str!(#path);
-            });
-        }
+    fn gens(&mut self, stmts: &[StmtTempl], shared: &Shared) {
+        self.gen_destructure(shared);
+        self.gen_sources(shared);
+        self.visit_stmts(stmts, shared);
+        self.tokens.extend(quote! {
+            Ok(())
+        });
     }
 
     fn gen_destructure(&mut self, shared: &Shared) {
         match &shared.input.data {
             Data::Struct(data) if matches!(data.fields, Fields::Named(_)) => {
                 let ty = &shared.input.ident;
-                self.tokens.extend(quote! {
-                    let #ty =
-                });
+                self.tokens.extend(quote! { let #ty });
 
                 brace(self.tokens, |tokens| {
                     for field in &data.fields {
@@ -74,7 +58,7 @@ impl<'a> Visitor<'a> {
                     }
                 });
 
-                <Token![;]>::default().to_tokens(self.tokens);
+                self.tokens.extend(quote! { = self; });
             }
             _ => {}
         }
@@ -120,10 +104,14 @@ impl<'a> Visitor<'a> {
                     let idx = Index::from(*index as usize);
 
                     match shared.templ.meta().reload().as_bool() {
-                        Ok(true) => self.tokens.extend(quote! { &source[#idx] }),
-                        Ok(false) => value.to_tokens(self.tokens),
+                        Ok(true) => self.tokens.extend(quote! {
+                            #TemplDisplay::display(&sources[#idx], writer)?;
+                        }),
+                        Ok(false) => self.tokens.extend(quote! {
+                            #TemplDisplay::display(&#value, writer)?;
+                        }),
                         Err(expr) => self.tokens.extend(quote! {
-                            if #expr { &sources[#idx] } else { #value }
+                            #TemplDisplay::display(if #expr { &sources[#idx] } else { #value }, writer)?;
                         }),
                     }
 
