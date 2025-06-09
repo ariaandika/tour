@@ -81,7 +81,7 @@ pub mod ast;
 pub mod common;
 
 // ===== Input =====
-mod config;
+pub mod config;
 
 // ===== Data =====
 pub mod metadata;
@@ -89,7 +89,5 @@ pub mod file;
 pub mod data;
 
 // ===== Output =====
-mod codegen;
-mod sizehint;
-pub mod template;
+pub mod codegen;
 

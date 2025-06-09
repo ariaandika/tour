@@ -33,6 +33,7 @@ impl Template {
         }
     }
 
+    /// Returns selected block if any, otherwise return all statements.
     pub(crate) fn stmts(&self) -> &[StmtTempl] {
         self.try_stmts().expect("[BUG] validation missed, selected block missing")
     }

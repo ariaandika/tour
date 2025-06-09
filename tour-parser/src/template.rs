@@ -7,7 +7,9 @@ use crate::{
     codegen,
     common::{TemplDisplay, TemplWrite},
     config::Config,
-    data::{BlockContent, File, Metadata, Template},
+    data::Template,
+    file::File,
+    metadata::Metadata,
     sizehint::{self, SizeHint},
     syntax::LayoutTempl,
 };
