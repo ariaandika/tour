@@ -2,6 +2,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::Token;
 
+use super::paren;
 use crate::{
     ast::{Scalar, Scope, StmtTempl},
     data::Template,
@@ -9,7 +10,21 @@ use crate::{
     syntax::{RenderTempl, RenderValue},
 };
 
-use super::paren;
+pub fn generate(size: SizeHint, tokens: &mut TokenStream) {
+    paren(tokens, |tokens| {
+        let (min,max) = size;
+        min.to_tokens(tokens);
+        <Token![,]>::default().to_tokens(tokens);
+        match max {
+            Some(max) => tokens.extend(quote! { Some(#max) }),
+            None => tokens.extend(quote! { None }),
+        }
+    });
+}
+
+pub fn is_empty(size: SizeHint) -> bool {
+    matches!(size,(0,None))
+}
 
 pub type SizeHint = (usize, Option<usize>);
 
@@ -22,28 +37,8 @@ impl<'a> Visitor<'a> {
         Self { templ }
     }
 
-    pub fn generate(&self, tokens: &mut TokenStream) {
-        paren(tokens, |tokens| {
-            let (min,max) = self.calculate();
-            min.to_tokens(tokens);
-            <Token![,]>::default().to_tokens(tokens);
-            match max {
-                Some(max) => tokens.extend(quote! { Some(#max) }),
-                None => tokens.extend(quote! { None }),
-            }
-        });
-    }
-
     pub fn generate_block(&self, block: &syn::Ident, tokens: &mut TokenStream) {
-        paren(tokens, |tokens| {
-            let (min,max) = self.calculate_block(block);
-            min.to_tokens(tokens);
-            <Token![,]>::default().to_tokens(tokens);
-            match max {
-                Some(max) => tokens.extend(quote! { Some(#max) }),
-                None => tokens.extend(quote! { None }),
-            }
-        });
+        generate(self.calculate_block(block), tokens);
     }
 
     pub fn calculate(&self) -> SizeHint {

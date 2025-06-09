@@ -30,7 +30,7 @@ pub fn derive(input: &DeriveInput) -> Result<TokenStream> {
     Ok(root)
 }
 
-pub fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream) {
+fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream) {
     let ident = &input.ident;
     let (g1, g2, g3) = input.generics.split_for_impl();
 
@@ -55,18 +55,12 @@ pub fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStr
 
         // ===== render_block_into() =====
 
-        trait_tokens.extend(quote! {
+        let blocks = templ.file().blocks();
+        let prefix = quote! {
             fn render_block_into(&self, block: &str, writer: &mut impl #TemplWrite) -> ::tour::Result<()>
-        });
+        };
 
-        brace(trait_tokens, |tokens| {
-            let blocks = templ.file().blocks();
-
-            if blocks.is_empty() {
-                tokens.extend(quote! { Err(::tour::Error::NoBlock) });
-                return;
-            }
-
+        brace_if(!blocks.is_empty(), prefix, trait_tokens, |tokens| {
             tokens.extend(quote! { match block });
             brace(tokens, |tokens| {
                 for block in blocks {
@@ -83,18 +77,11 @@ pub fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStr
 
         // ===== contains_block() =====
 
-        trait_tokens.extend(quote! {
+        let prefix = quote! {
             fn contains_block(&self, block: &str) -> bool
-        });
+        };
 
-        brace(trait_tokens, |tokens| {
-            let blocks = templ.file().blocks();
-
-            if blocks.is_empty() {
-                false.to_tokens(tokens);
-                return;
-            }
-
+        brace_if(!blocks.is_empty(), prefix, trait_tokens, |tokens| {
             let blocks = blocks
                 .iter()
                 .map(|block|{
@@ -108,27 +95,23 @@ pub fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStr
 
         // ===== size_hint() =====
 
-        trait_tokens.extend(quote! {
+        let size = sizehint::Visitor::new(templ).calculate();
+        let is_some = !sizehint::is_empty(size);
+        let prefix = quote! {
             fn size_hint(&self) -> (usize,Option<usize>)
-        });
+        };
 
-        brace(trait_tokens, |tokens| {
-            sizehint::Visitor::new(templ).generate(tokens);
+        brace_if(is_some, prefix, trait_tokens, |tokens| {
+            sizehint::generate(size, tokens);
         });
 
         // ===== size_hint_block() =====
 
-        trait_tokens.extend(quote! {
+        let prefix = quote! {
             fn size_hint_block(&self, block: &str) -> (usize,Option<usize>)
-        });
+        };
 
-        brace(trait_tokens, |tokens| {
-            let blocks = templ.file().blocks();
-            if blocks.is_empty() {
-                tokens.extend(quote! { (0,None) });
-                return;
-            }
-
+        brace_if(!blocks.is_empty(), prefix, trait_tokens, |tokens| {
             tokens.extend(quote! { match block });
             brace(tokens, |tokens| {
                 for block in blocks {
@@ -203,6 +186,16 @@ where
     F: FnOnce(&mut TokenStream)
 {
     token::Brace::default().surround(tokens, call);
+}
+
+fn brace_if<F>(cond: bool, prefix: impl ToTokens, tokens: &mut TokenStream, call: F)
+where
+    F: FnOnce(&mut TokenStream)
+{
+    if cond {
+        prefix.to_tokens(tokens);
+        token::Brace::default().surround(tokens, call);
+    }
 }
 
 fn paren<F>(tokens: &mut TokenStream, call: F)
