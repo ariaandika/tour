@@ -13,3 +13,8 @@ license = "MIT"
 keywords = ["template","html"]
 categories = ["template-engine"]
 
+[workspace.dependencies]
+proc-macro2 = "1.0.93"
+syn = { version = "2.0.101", features = ["full"] }
+quote = "1.0.38"
+

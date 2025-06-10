@@ -11,12 +11,11 @@ license.workspace = true
 keywords.workspace = true
 categories.workspace = true
 
-
 [dependencies]
 bytes = "1.10.1"
 itoa = "1.0.15"
-tour-macros = { version = "0.1.0", path = "../tour-macros" }
-tour-core = { version = "0.1.0", path = "../tour-core" }
+tour-macros = { path = "../tour-macros" }
+tour-core = { path = "../tour-core" }
 
 [features]
 default = ["dev-reload"]

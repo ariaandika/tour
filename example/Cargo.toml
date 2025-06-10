@@ -5,4 +5,4 @@ edition = "2024"
 publish = false
 
 [dependencies]
-tour = { version = "0.1.0", path = "../tour" }
+tour = { path = "../tour" }
