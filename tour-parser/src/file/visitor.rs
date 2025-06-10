@@ -122,8 +122,8 @@ impl Visitor<'_> for SynVisitor<'_> {
 
             // ===== scalar =====
 
-            StmtSyn::Yield(_yield) => {
-                self.stack_mut().push(StmtTempl::Scalar(Scalar::Yield));
+            StmtSyn::Yield(templ) => {
+                self.stack_mut().push(StmtTempl::Scalar(Scalar::Yield(templ)));
             },
             StmtSyn::Item(item) => {
                 self.stack_mut().push(StmtTempl::Scalar(Scalar::Item(item)));

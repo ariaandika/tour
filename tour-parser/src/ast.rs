@@ -24,7 +24,7 @@ pub enum Scalar {
     /// Render block or external template.
     Render(RenderTempl),
     /// Render body for layout.
-    Yield,
+    Yield(YieldTempl),
     /// Rust item that will be generated as is.
     Item(Rc<ItemTempl>),
     /// Rust expression.

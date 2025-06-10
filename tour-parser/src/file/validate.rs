@@ -70,7 +70,7 @@ impl<'a> ValidateVisitor<'a> {
                         },
                     }
                 },
-                Scalar::Yield => {}
+                Scalar::Yield(_) => {}
                 Scalar::Item(_) => {}
                 Scalar::Expr { .. } => {}
             }

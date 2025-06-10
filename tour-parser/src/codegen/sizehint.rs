@@ -84,7 +84,7 @@ impl<'a> Visitor<'a> {
                         },
                     }
                 },
-                Scalar::Yield | Scalar::Expr { .. } | Scalar::Use(_) | Scalar::Item(_) => (0,None),
+                Scalar::Yield(_) | Scalar::Expr { .. } | Scalar::Use(_) | Scalar::Item(_) => (0,None),
             },
             StmtTempl::Scope(scope) => self.visit_scope(scope),
         }

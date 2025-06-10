@@ -3,13 +3,7 @@ use quote::{ToTokens, format_ident, quote};
 use syn::*;
 use tour_core::Delimiter;
 
-use crate::{
-    ast::*,
-    common::TemplDisplay,
-    data::Template,
-    file::AliasKind,
-    syntax::{ItemTempl, RenderTempl, RenderValue},
-};
+use crate::{ast::*, common::{TemplDisplay, INNER_BLOCK}, data::Template, file::AliasKind, syntax::*};
 
 use super::brace;
 
@@ -117,9 +111,10 @@ impl<'a> Visitor<'a> {
 
                     self.static_len += 1;
                 },
-                Scalar::Yield => {
+                Scalar::Yield(YieldTempl { block, .. }) => {
+                    let block = block.as_ref().map(|e|e.1.to_string()).unwrap_or(INNER_BLOCK.into());
                     self.tokens.extend(quote! {
-                        ::tour::Template::render_block_into(self.0, "TourInner", &mut *writer)?;
+                        ::tour::Template::render_block_into(self.0, #block, writer)?;
                     });
                 },
                 Scalar::Render(RenderTempl { value: RenderValue::Ident(id), block, .. }) => {

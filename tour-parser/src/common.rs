@@ -25,6 +25,9 @@ impl quote::ToTokens for TemplWrite {
 /// Attribute namespace for derive macro.
 pub const DERIVE_ATTRIBUTE: &str = "template";
 
+/// Reserved block name containing template without the layout.
+pub const INNER_BLOCK: &str = "inner";
+
 pub(crate) fn name() -> syn::Ident {
     use std::sync::atomic::{AtomicUsize, Ordering};
     static COUNTER: AtomicUsize = AtomicUsize::new(0);
