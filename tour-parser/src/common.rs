@@ -70,8 +70,15 @@ pub(crate) mod path {
 
     /// resolve path relative to given directory
     pub fn resolve_at(path: impl AsRef<Path>, cwd: impl Into<PathBuf>) -> Rc<str> {
-        let mut cwd = cwd.into();
-        cwd.push(path);
+        let path = path.as_ref();
+        let mut cwd = match () {
+            _ if path.starts_with("/") => self::cwd(),
+            _ => cwd.into(),
+        };
+        cwd.push(match path.strip_prefix("/") {
+            Ok(path) => path,
+            Err(_) => path,
+        });
         normalize(cwd.as_path())
             .to_string_lossy()
             .into()

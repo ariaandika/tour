@@ -1,52 +1,51 @@
-use std::io::{stdin, BufRead};
 use tour::Template;
 
-#[derive(Clone, Copy)]
-struct Foo;
-
-impl tour::TemplDisplay for Foo {
-    fn display(&self, f: &mut impl tour::TemplWrite) -> tour::Result<()> {
-        f.write_str("Deez")
-    }
-}
+#[derive(Template)]
+#[template(source = "
+<section>
+{{ pub block Body }}
+  <p>Content</p>
+{{ endblock }}
+</section>
+")]
+struct Page;
 
 #[derive(Template)]
-#[template(path = "/example/src/main.html")]
-struct Page {
-    id: i32,
-    name: String,
-    deez: Foo,
-    foos: Vec<Foo>,
-}
+#[template(source = r#"
+{{ extends "/example/src/layout.html" }}
+  <p>Content</p>
+"#)]
+struct PageLayouted;
 
-#[derive(Template)]
-#[template(source = "<div>Inlined {{ name }}</div>")]
-struct Inline {
-    name: String,
+#[derive(Template, Default)]
+#[template(source = r#"
+<form>
+  <label>
+    <span>Username</span>
+    <input name="username">
+  </label>
+  <label>
+    <span>Username</span>
+    <input name="username">
+  </label>
+
+  {{ if let Some(err) = error }}
+    <span id="error">{{ err }}</span>
+  {{ endif }}
+
+</form>
+"#)]
+struct Form {
+    error: Option<String>,
 }
 
 fn main() {
-    let _path = "home";
+    let page = Page;
 
-    loop {
-        let page = Page {
-            id: 4,
-            name: "<script>alert('foo')</script>".into(),
-            deez: Foo,
-            foos: vec![Foo;4],
-        };
-        let result = page.render().unwrap();
+    let _full_page = page.render().unwrap();
+    let _inner_page = page.render_block("Body").unwrap();
 
-        let inlined = Inline { name: format!("foo {}",4) }.render().unwrap();
 
-        println!("{result}{inlined}");
-        println!("[Press ENTER to re render]");
-
-        let mut buf = String::new();
-        { stdin().lock().read_line(&mut buf).unwrap(); }
-
-        if buf == "q\n" {
-            break
-        }
-    }
+    let form = Form::default();
+    let _form = form.render().unwrap();
 }
