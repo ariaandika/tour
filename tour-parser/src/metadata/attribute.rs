@@ -47,7 +47,7 @@ impl<'a> AttrVisitor<'a> {
             error!("one of `path`, `root`, or `source` is required")
         };
 
-        Ok(Metadata { path, source, reload: reload.unwrap_or_default(), block, })
+        Ok(Metadata { path, source, reload: reload.unwrap_or_default(), block, kind: super::TemplKind::Main })
     }
 
     fn visit_pair(&mut self, name: Ident, value: Expr) -> Result<()> {

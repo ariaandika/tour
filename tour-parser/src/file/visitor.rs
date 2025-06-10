@@ -43,8 +43,8 @@ impl<'a> SynVisitor<'a> {
             scopes: vec![],
             meta,
         };
-        let ok = crate::common::error!(!Parser::new(source.as_ref(), visitor).parse());
-        let SynVisitor { layout, imports, blocks, statics, root, .. } = ok;
+        let me = crate::common::error!(!Parser::new(source.as_ref(), visitor).parse());
+        let SynVisitor { layout, imports, blocks, statics, root, .. } = me;
         Ok(File { layout, imports, blocks, statics, stmts: root })
     }
 
@@ -67,7 +67,7 @@ impl<'a> SynVisitor<'a> {
         let path: Rc<str> = path.value().into();
 
         if !self.imports.iter().any(|e|e==&*path) {
-            let meta = self.meta.clone_with_path(&*path);
+            let meta = self.meta.clone_as_import(&*path);
             let file = match Self::generate(&meta) {
                 Ok(ok) => ok,
                 Err(err) => return Err(ParseError::Generic(err.to_string())),

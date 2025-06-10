@@ -21,6 +21,16 @@ pub struct Metadata {
     source: Option<Rc<str>>,
     reload: Reload,
     block: Option<Ident>,
+    kind: TemplKind,
+}
+
+#[derive(Debug)]
+pub enum TemplKind {
+    Main,
+    MainWrapper,
+    WrappedMain,
+    Layout,
+    Import,
 }
 
 impl Metadata {
@@ -30,22 +40,28 @@ impl Metadata {
     }
 
     /// Create [`Metadata`] with given path inherited from parent meta.
-    pub fn clone_with_path(&self, path: impl AsRef<std::path::Path>) -> Metadata {
+    ///
+    /// This will set [`TemplKind`] to [`TemplKind::Import`].
+    pub fn clone_as_import(&self, path: impl AsRef<std::path::Path>) -> Metadata {
         Self {
             path: path::resolve_at(path, self.dir_ref()),
             source: None,
             reload: self.reload.clone(),
             block: None,
+            kind: TemplKind::Import,
         }
     }
 
     /// Generate layout [`Metadata`] inherited from parent meta.
-    pub fn clone_with_layout(&self, layout: &LayoutTempl) -> Metadata {
+    ///
+    /// This will set [`TemplKind`] to [`TemplKind::Layout`].
+    pub fn clone_as_layout(&self, layout: &LayoutTempl) -> Metadata {
         Self {
             path: path::resolve_at(layout.path.value(), self.dir_ref()),
             source: None,                // there is no inline layout
             reload: self.reload.clone(), // layout specific reload seems redundant
             block: None,                 // allows select block for a layout ?
+            kind: TemplKind::Layout,
         }
     }
 
@@ -87,6 +103,11 @@ impl Metadata {
     /// Returns [`Reload`] behavior.
     pub fn reload(&self) -> &Reload {
         &self.reload
+    }
+
+    /// Returns the [`TemplKind`].
+    pub fn kind(&self) -> &TemplKind {
+        &self.kind
     }
 }
 

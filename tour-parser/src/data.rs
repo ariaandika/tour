@@ -8,6 +8,8 @@ use crate::{
     syntax::LayoutTempl,
 };
 
+mod validate;
+
 // ===== Template =====
 
 /// Contains a single file template information.
@@ -22,8 +24,8 @@ pub struct Template {
 impl Template {
     /// Create new [`Template`].
     pub fn new(name: Ident, meta: Metadata, file: File) -> Result<Self> {
-        let me = Self { name, meta, file };
-        me.try_stmts()?;
+        let mut me = Self { name, meta, file };
+        validate::validate(&mut me)?;
         Ok(me)
     }
 

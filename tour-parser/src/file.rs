@@ -77,6 +77,11 @@ impl File {
         &self.stmts
     }
 
+    /// Returns all mutable statements.
+    pub fn stmts_mut(&mut self) -> &mut Vec<StmtTempl> {
+        &mut self.stmts
+    }
+
     /// Consume file into [`LayoutTempl`].
     pub fn into_layout(self) -> Option<LayoutTempl> {
         self.layout
@@ -88,6 +93,10 @@ impl File {
 
     pub fn blocks(&self) -> &[BlockContent] {
         &self.blocks
+    }
+
+    pub fn blocks_mut(&mut self) -> &mut Vec<BlockContent> {
+        &mut self.blocks
     }
 
     pub fn statics(&self) -> &[Rc<str>] {

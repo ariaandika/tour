@@ -119,7 +119,7 @@ impl<'a> Visitor<'a> {
                 },
                 Scalar::Yield => {
                     self.tokens.extend(quote! {
-                        #TemplDisplay::display(&self.0, &mut *writer)?;
+                        self.0.render_block_into("TourInner", &mut *writer)?;
                     });
                 },
                 Scalar::Render(RenderTempl { value, .. }) => match value {
