@@ -16,9 +16,11 @@ bytes = "1.10.1"
 itoa = "1.0.15"
 tour-macros = { path = "../tour-macros" }
 tour-core = { path = "../tour-core" }
+time = { version = "0.3.41", features = ["formatting"], optional = true }
 
 [features]
 default = ["dev-reload"]
 
 # reload default to debug_assertions
 dev-reload = ["tour-macros/dev-reload"]
+time = ["dep:time"]

@@ -116,6 +116,33 @@ impl<F: std::io::Write> TemplWrite for IoTemplWrite<F> {
 
 deref!(IoTemplWrite);
 
+/// Wrap [`TemplWrite`] to [`std::io::Write`].
+///
+/// Note that it does [utf8 check][str::from_utf8] every write.
+pub struct TemplWriteIo<F>(pub F);
+
+impl<F: TemplWrite> std::io::Write for TemplWriteIo<F> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match str::from_utf8(buf) {
+            Ok(s) => match self.0.write_str(s) {
+                Ok(_) => Ok(s.len()),
+                Err(err) => Err(io(err)),
+            },
+            Err(err) => Err(io(err)),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn io<E: Into<Box<dyn std::error::Error + Send + Sync>>>(err: E) -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, err)
+}
+
+deref!(TemplWriteIo);
+
 /// Wrap [`TemplWrite`] to [`std::fmt::Write`].
 pub struct TemplWriteFmt<F>(pub F);
 

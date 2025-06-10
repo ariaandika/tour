@@ -48,9 +48,12 @@ mod display;
 mod error;
 
 pub use template::Template;
-pub use write::{TemplWrite, Escape, FmtTemplWrite, IoTemplWrite, TemplWriteFmt};
+pub use write::{TemplWrite, Escape, FmtTemplWrite, IoTemplWrite, TemplWriteFmt, TemplWriteIo};
 pub use display::{TemplDisplay, Display, Debug};
 pub use error::{Error, Result};
+
+#[cfg(feature = "time")]
+pub mod time;
 
 #[doc(no_inline)]
 pub use tour_core::{Parser, StaticVisitor};
