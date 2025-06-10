@@ -61,9 +61,14 @@ impl<'a> Visitor<'a> {
                     RenderValue::Path(path) => {
                         self.visit_stmts(self.templ.file().import_by_path(path).templ().stmts())
                     },
-                    RenderValue::Ident(id) => match self.templ.file().resolve_id(id) {
-                        AliasKind::Block(block) => self.visit_stmts(&block.stmts),
-                        AliasKind::Import(import) => self.visit_stmts(import.templ().stmts()),
+                    RenderValue::Ident(id) => {
+                        match self.templ.file().resolve_id(id) {
+                            AliasKind::Block(block) => self.visit_stmts(&block.stmts),
+                            AliasKind::Import(import) => {
+                                let me = Visitor { templ: import.templ() };
+                                me.visit_stmts(import.templ().stmts())
+                            },
+                        }
                     }
                 },
                 Scalar::Yield | Scalar::Expr { .. } | Scalar::Use(_) | Scalar::Item(_) => (0,None),

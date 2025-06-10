@@ -51,8 +51,9 @@ impl File {
         self.imports.iter().find(|&e| e == name)
     }
 
-    pub(crate) fn import_by_id(&self, name: &Ident) -> &Import {
-        self.get_import_by_id(name).expect("[BUG] validation import rendering missed")
+    fn import_by_id(&self, name: &Ident) -> &Import {
+        self.get_import_by_id(name)
+            .unwrap_or_else(|| panic!("[BUG] validation import id missed, cannot find `{name}`: {:#?}",self.imports()))
     }
 
     /// Get imported template by path.
@@ -62,7 +63,12 @@ impl File {
     }
 
     pub(crate) fn import_by_path(&self, path: &LitStr) -> &Import {
-        self.get_import_by_path(path).expect("[BUG] validation import rendering missed")
+        self.get_import_by_path(path).unwrap_or_else(|| {
+            panic!(
+                "[BUG] validation import path missed, cannot find `{}`",
+                path.value()
+            )
+        })
     }
 
     pub(crate) fn resolve_id(&self, id: &Ident) -> AliasKind<'_> {
@@ -110,6 +116,7 @@ impl File {
 
 // ===== Import =====
 
+#[derive(Debug)]
 pub struct Import {
     path: Rc<str>,
     alias: Ident,

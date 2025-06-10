@@ -21,6 +21,12 @@ pub struct Template {
     file: File,
 }
 
+impl std::fmt::Debug for Template {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Template").field("name", &self.name).field("meta", &self.meta).field("file", &"<..>").finish()
+    }
+}
+
 impl Template {
     /// Create new [`Template`].
     pub fn new(name: Ident, meta: Metadata, file: File) -> Result<Self> {

@@ -119,10 +119,10 @@ impl<'a> Visitor<'a> {
                 },
                 Scalar::Yield => {
                     self.tokens.extend(quote! {
-                        self.0.render_block_into("TourInner", &mut *writer)?;
+                        ::tour::Template::render_block_into(self.0, "TourInner", &mut *writer)?;
                     });
                 },
-                Scalar::Render(RenderTempl { value, .. }) => match value {
+                Scalar::Render(RenderTempl { value, block, .. }) => match value {
                     // Either Block, just visit_stmts, or Import Aliased, render by type
                     RenderValue::Ident(id) => {
                         match shared.templ.file().resolve_id(id) {
@@ -130,7 +130,7 @@ impl<'a> Visitor<'a> {
                             AliasKind::Import(import) => {
                                 let name = &import.alias();
                                 self.tokens.extend(quote! {
-                                    #TemplDisplay::display(&#name(self), &mut *writer)?;
+                                    ::tour::Template::render_into(&#name(self), &mut *writer)?;
                                 });
                             }
                         }
@@ -140,7 +140,7 @@ impl<'a> Visitor<'a> {
                         let import = shared.templ.file().import_by_path(path);
                         let name = import.alias();
                         self.tokens.extend(quote! {
-                            #TemplDisplay::display(&#name(self), &mut *writer)?;
+                            ::tour::Template::render_into(&#name(self), &mut *writer)?;
                         });
                     },
                 },

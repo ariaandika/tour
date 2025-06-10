@@ -28,9 +28,19 @@ pub struct Metadata {
 pub enum TemplKind {
     Main,
     MainWrapper,
-    WrappedMain,
     Layout,
     Import,
+}
+
+impl std::fmt::Display for TemplKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Main => write!(f, "Main"),
+            Self::MainWrapper => write!(f, "MainWrapper"),
+            Self::Layout => write!(f, "Layout"),
+            Self::Import => write!(f, "Import"),
+        }
+    }
 }
 
 impl Metadata {
@@ -108,6 +118,11 @@ impl Metadata {
     /// Returns the [`TemplKind`].
     pub fn kind(&self) -> &TemplKind {
         &self.kind
+    }
+
+    /// Returns template source if its inlined.
+    pub fn inline(&self) -> Option<&str> {
+        self.source.as_deref()
     }
 }
 

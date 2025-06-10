@@ -108,7 +108,7 @@ impl Visitor<'_> for SynVisitor<'_> {
             StmtSyn::Layout(new_layout) => {
                 let path = new_layout.path.clone();
                 if self.layout.replace(new_layout).is_some() {
-                    error!("cannot have 2 `extends` or `layout`")
+                    error!("cannot have 2 `extends` or `layout`");
                 }
                 self.import(&path)?;
             },

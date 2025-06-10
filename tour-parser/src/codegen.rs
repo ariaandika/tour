@@ -8,7 +8,7 @@ use crate::{
     config::Config,
     data::Template,
     file::File,
-    metadata::Metadata,
+    metadata::{Metadata, TemplKind},
 };
 
 mod body;
@@ -35,6 +35,17 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
     let (g1, g2, g3) = input.generics.split_for_impl();
 
     // ===== trait Template =====
+
+    let cwd = templ.meta().path();
+    if std::path::Path::new(cwd).is_file() {
+        root.extend(quote! {
+            #[doc = concat!(" ",include_str!(#cwd))]
+        });
+    } else if let Some(src) = templ.meta().inline() {
+        root.extend(quote! {
+            #[doc = concat!(" ",#src)]
+        });
+    }
 
     root.extend(quote! {
         #[automatically_derived]
@@ -77,11 +88,12 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
 
         // ===== contains_block() =====
 
+        let is_ok = matches!(templ.meta().kind(), TemplKind::Main) && !blocks.is_empty();
         let prefix = quote! {
             fn contains_block(&self, block: &str) -> bool
         };
 
-        brace_if(!blocks.is_empty(), prefix, trait_tokens, |tokens| {
+        brace_if(is_ok, prefix, trait_tokens, |tokens| {
             let blocks = blocks
                 .iter()
                 .map(|block|{
@@ -95,35 +107,48 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
 
         // ===== size_hint() =====
 
-        let size = sizehint::Visitor::new(templ).calculate();
-        let is_some = !sizehint::is_empty(size);
+        let is_skip = !matches!(templ.meta().kind(), TemplKind::Main);
+        let size = if is_skip {
+            (0,None)
+        } else {
+            sizehint::Visitor::new(templ).calculate()
+        };
+
+        let is_sized = !sizehint::is_empty(size);
         let prefix = quote! {
             fn size_hint(&self) -> (usize,Option<usize>)
         };
 
-        brace_if(is_some, prefix, trait_tokens, |tokens| {
+        brace_if(is_sized, prefix, trait_tokens, |tokens| {
             sizehint::generate(size, tokens);
         });
 
         // ===== size_hint_block() =====
 
-        let blocks = blocks
-            .iter()
-            .map(|block|{
-                let block_name = &block.templ.name;
-                (
-                    sizehint::Visitor::new(templ).calculate_block(block_name),
-                    block.templ.name.to_string()
-                )
-            })
-            .filter(|e|sizehint::is_empty(e.0))
-            .collect::<Vec<_>>();
+        let is_ok = matches!(templ.meta().kind(), TemplKind::Main) && !blocks.is_empty();
+        let blocks = if is_ok {
+            blocks
+                .iter()
+                .map(|block|{
+                    let block_name = &block.templ.name;
+                    (
+                        sizehint::Visitor::new(templ).calculate_block(block_name),
+                        block.templ.name.to_string()
+                    )
+                })
+                .filter(|e|sizehint::is_empty(e.0))
+                .collect()
 
+        } else {
+            vec![]
+        };
+
+        let is_sized = !blocks.is_empty();
         let prefix = quote! {
             fn size_hint_block(&self, block: &str) -> (usize,Option<usize>)
         };
 
-        brace_if(!blocks.is_empty(), prefix, trait_tokens, |tokens| {
+        brace_if(is_sized, prefix, trait_tokens, |tokens| {
             tokens.extend(quote! { match block });
             brace(tokens, |tokens| {
                 for (size,name) in blocks {
@@ -139,14 +164,16 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
 
     // ===== trait TemplDisplay =====
 
-    root.extend(quote! {
-        #[automatically_derived]
-        impl #g1 ::tour::TemplDisplay for #ident #g2 #g3 {
-            fn display(&self, f: &mut impl ::tour::TemplWrite) -> ::tour::Result<()> {
-                self.render_into(f)
+    if matches!(templ.meta().kind(), TemplKind::Main) {
+        root.extend(quote! {
+            #[automatically_derived]
+            impl #g1 ::tour::TemplDisplay for #ident #g2 #g3 {
+                fn display(&self, f: &mut impl ::tour::TemplWrite) -> ::tour::Result<()> {
+                    self.render_into(f)
+                }
             }
-        }
-    });
+        });
+    }
 
     // ===== imports =====
 
@@ -159,7 +186,7 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
             .trim_start_matches(path::cwd().to_str().unwrap_or(""))
             .trim_start_matches("/");
         let doc = if path.is_empty() {
-            quote! {}
+            quote! { }
         } else {
             quote! { #[doc = concat!(" ",#path)] }
         };
@@ -176,6 +203,8 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
         };
         input.to_tokens(root);
 
+        generate_templ(import.templ(), &input, root);
+
         root.extend(quote! {
             #[automatically_derived]
             impl #t1 ::std::ops::Deref for #name #t2 #g3 {
@@ -185,30 +214,28 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
                 }
             }
         });
-
-        generate_templ(import.templ(), &input, root);
     }
 
     // ===== include_str!() =====
 
     {
-        let cwd = templ.meta().path();
-        if std::path::Path::new(cwd).is_file() {
-            root.extend(quote! {
-                const _: &str = include_str!(#cwd);
-            });
-        }
+        // let cwd = templ.meta().path();
+        // if std::path::Path::new(cwd).is_file() {
+        //     root.extend(quote! {
+        //         const _: &str = include_str!(#cwd);
+        //     });
+        // }
 
-        for import in templ.file().imports() {
-            let path = import.templ().meta().path();
-            let path = path::resolve_at(path, cwd);
-            let path = path.as_ref();
-            if std::path::Path::new(path).is_file() {
-                root.extend(quote! {
-                    const _: &str = include_str!(#path);
-                });
-            }
-        }
+        // for import in templ.file().imports() {
+        //     let path = import.templ().meta().path();
+        //     let path = path::resolve_at(path, cwd);
+        //     let path = path.as_ref();
+        //     if std::path::Path::new(path).is_file() {
+        //         root.extend(quote! {
+        //             const _: &str = include_str!(#path);
+        //         });
+        //     }
+        // }
     }
 }
 
