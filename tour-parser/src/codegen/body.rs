@@ -122,28 +122,63 @@ impl<'a> Visitor<'a> {
                         ::tour::Template::render_block_into(self.0, "TourInner", &mut *writer)?;
                     });
                 },
-                Scalar::Render(RenderTempl { value, block, .. }) => match value {
-                    // Either Block, just visit_stmts, or Import Aliased, render by type
-                    RenderValue::Ident(id) => {
-                        match shared.templ.file().resolve_id(id) {
-                            AliasKind::Block(block) => self.visit_stmts(&block.stmts, shared),
-                            AliasKind::Import(import) => {
-                                let name = &import.alias();
-                                self.tokens.extend(quote! {
-                                    ::tour::Template::render_into(&#name(self), &mut *writer)?;
-                                });
-                            }
-                        }
-                    },
-                    // Import directly, just render by type
-                    RenderValue::Path(path) => {
-                        let import = shared.templ.file().import_by_path(path);
-                        let name = import.alias();
-                        self.tokens.extend(quote! {
-                            ::tour::Template::render_into(&#name(self), &mut *writer)?;
-                        });
-                    },
+                Scalar::Render(RenderTempl { value: RenderValue::Ident(id), block, .. }) => {
+                    match (shared.templ.file().resolve_id(id), block) {
+                        (AliasKind::Block(block), None) => {
+                            self.visit_stmts(&block.stmts, shared)
+                        },
+                        (AliasKind::Block(_), Some(_)) => unreachable!("cannot render block from block"),
+                        (AliasKind::Import(import), None) => {
+                            let name = import.alias();
+                            self.tokens.extend(quote! {
+                                ::tour::Template::render_into(&#name(self), &mut *writer)?;
+                            });
+                        },
+                        (AliasKind::Import(import), Some((_, block))) => {
+                            let name = import.alias();
+                            let id = block.to_string();
+                            self.tokens.extend(quote! {
+                                ::tour::Template::render_block_into(&#name(self), #id, &mut *writer)?;
+                            });
+                        },
+                    }
                 },
+                Scalar::Render(RenderTempl { value: RenderValue::Path(path), block, .. }) => {
+                    match block {
+                        Some((_, block)) => {
+                            let import = shared.templ.file().import_by_path(path);
+                            let name = import.alias();
+                            let id = block.to_string();
+                            self.tokens.extend(quote! {
+                                ::tour::Template::render_block_into(&#name(self), #id, &mut *writer)?;
+                            });
+                        },
+                        None => {
+                            let import = shared.templ.file().import_by_path(path);
+                            let name = import.alias();
+                            self.tokens.extend(quote! {
+                                ::tour::Template::render_into(&#name(self), &mut *writer)?;
+                            });
+                        },
+                    }
+                },
+                // Scalar::Render(RenderTempl { value, block, .. }) => match value {
+                //     // Either Block, just visit_stmts, or Import Aliased, render by type
+                //     RenderValue::Ident(id) => {
+                //         match shared.templ.file().resolve_id(id) {
+                //             AliasKind::Block(block) => self.visit_stmts(&block.stmts, shared),
+                //             AliasKind::Import(import) => {
+                //                 let name = &import.alias();
+                //                 self.tokens.extend(quote! {
+                //                     ::tour::Template::render_into(&#name(self), &mut *writer)?;
+                //                 });
+                //             }
+                //         }
+                //     },
+                //     // Import directly, just render by type
+                //     RenderValue::Path(path) => {
+                //     },
+                // },
                 Scalar::Expr { expr, delim } => {
                     let display = display(*delim, expr);
                     let writer = writer(*delim);

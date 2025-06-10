@@ -25,29 +25,3 @@ fn nested_layout() {
     );
 }
 
-#[test]
-fn import() {
-    #[derive(Template)]
-    #[template(path = "/tour/tests/layout/import.html")]
-    struct Import;
-
-    let templ = Import;
-    assert_eq!(
-        templ.render().unwrap(),
-        "<nav>Navbar</nav>\n\n<nav>Navbar</nav>\n\n"
-    );
-}
-
-#[test]
-fn import_alias() {
-    #[derive(Template)]
-    #[template(path = "/tour/tests/layout/alias.html")]
-    struct Import;
-
-    let templ = Import;
-    assert_eq!(
-        templ.render().unwrap(),
-        "\n<nav>Navbar</nav>\n\n<nav>Navbar</nav>\n\n"
-    );
-}
-

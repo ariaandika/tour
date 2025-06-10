@@ -71,6 +71,13 @@ impl File {
         })
     }
 
+    pub(crate) fn get_resolved_id(&self, id: &Ident) -> Option<AliasKind<'_>> {
+        match self.get_block(id) {
+            Some(block) => Some(AliasKind::Block(block)),
+            None => Some(AliasKind::Import(self.get_import_by_id(id)?)),
+        }
+    }
+
     pub(crate) fn resolve_id(&self, id: &Ident) -> AliasKind<'_> {
         match self.get_block(id) {
             Some(block) => AliasKind::Block(block),
@@ -154,5 +161,28 @@ impl PartialEq<Ident> for Import {
 pub enum AliasKind<'a> {
     Block(&'a BlockContent),
     Import(&'a Import),
+}
+
+// ===== Debug =====
+
+impl std::fmt::Debug for File {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("File")
+            .field("layout", &self.layout.as_ref().map(|e|e.path.value()))
+            .field("imports", &self.imports)
+            .field("blocks", &self.blocks)
+            .field("statics", &self.statics)
+            .field("stmts", &"<statements>")
+            .finish()
+    }
+}
+
+impl std::fmt::Debug for BlockContent {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BlockContent")
+            .field("templ", &self.templ.name)
+            .field("stmts", &"<statements>")
+            .finish()
+    }
 }
 

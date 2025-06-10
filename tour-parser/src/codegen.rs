@@ -215,28 +215,6 @@ fn generate_templ(templ: &Template, input: &DeriveInput, root: &mut TokenStream)
             }
         });
     }
-
-    // ===== include_str!() =====
-
-    {
-        // let cwd = templ.meta().path();
-        // if std::path::Path::new(cwd).is_file() {
-        //     root.extend(quote! {
-        //         const _: &str = include_str!(#cwd);
-        //     });
-        // }
-
-        // for import in templ.file().imports() {
-        //     let path = import.templ().meta().path();
-        //     let path = path::resolve_at(path, cwd);
-        //     let path = path.as_ref();
-        //     if std::path::Path::new(path).is_file() {
-        //         root.extend(quote! {
-        //             const _: &str = include_str!(#path);
-        //         });
-        //     }
-        // }
-    }
 }
 
 fn brace<F>(tokens: &mut TokenStream, call: F)

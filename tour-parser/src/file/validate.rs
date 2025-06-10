@@ -1,10 +1,10 @@
-use syn::{Ident, LitStr, Result};
+use syn::Result;
 
-use super::File;
+use super::{AliasKind, File};
 use crate::{
     ast::{Scalar, Scope, StmtTempl},
     common::error,
-    syntax::RenderValue,
+    syntax::{RenderTempl, RenderValue},
 };
 
 /// Template validation.
@@ -25,28 +25,6 @@ impl<'a> ValidateVisitor<'a> {
         me.visit_stmts(&me.file.stmts)
     }
 
-    /// Try to render block or import
-    fn validate_render_id(&self, id: &Ident) -> Result<()> {
-        if self.file.get_block(id).is_some() {
-            return Ok(())
-        }
-
-        if self.file.get_import_by_id(id).is_some() {
-            return Ok(())
-        }
-
-        error!(id, "cannot find block/template `{id}`")
-    }
-
-    /// Try to render block or import
-    fn validate_render_path(&self, path: &LitStr) -> Result<()> {
-        if self.file.get_import_by_path(path).is_some() {
-            return Ok(())
-        }
-
-        error!(path, "cannot find template `{}`",path.value())
-    }
-
     fn visit_stmts(&self, stmts: &[StmtTempl]) -> Result<()> {
         for stmt in stmts {
             self.visit_stmt(stmt)?;
@@ -59,10 +37,39 @@ impl<'a> ValidateVisitor<'a> {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static { .. } => {}
                 Scalar::Use(_) => {}
-                Scalar::Render(render) => match &render.value {
-                    RenderValue::Ident(ident) => self.validate_render_id(ident)?,
-                    RenderValue::Path(path) => self.validate_render_path(path)?,
-                }
+                Scalar::Render(RenderTempl { value: RenderValue::Ident(id), block, .. }) => {
+                    match (self.file.get_resolved_id(id),block) {
+                        (Some(_), None) => {
+                            // Ok
+                        },
+                        (Some(AliasKind::Import(import)), Some((_, block))) => {
+                            if import.templ.file().get_block(block).is_none() {
+                                error!(id, "cannot find block `{block}` in `{id}`")
+                            }
+                        },
+                        (Some(AliasKind::Block(_)), Some((_, block))) => {
+                            error!(id, "cannot render a block `{id}` from a block `{block}`")
+                        },
+                        (None,_) => {
+                            error!(id, "cannot find block/template `{id}`")
+                        }
+                    }
+                },
+                Scalar::Render(RenderTempl { value: RenderValue::Path(path), block, .. }) => {
+                    match (self.file.get_import_by_path(path), block) {
+                        (Some(_), None) => {
+                            // Ok
+                        },
+                        (Some(import), Some((_, block))) => {
+                            if import.templ.file().get_block(block).is_none() {
+                                error!(path, "cannot find block `{block}` in `{}`", path.value())
+                            }
+                        },
+                        (None,_) => {
+                            error!(path, "cannot find template `{}`", path.value())
+                        },
+                    }
+                },
                 Scalar::Yield => {}
                 Scalar::Item(_) => {}
                 Scalar::Expr { .. } => {}

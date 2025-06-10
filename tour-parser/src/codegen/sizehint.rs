@@ -57,18 +57,31 @@ impl<'a> Visitor<'a> {
         match stmt {
             StmtTempl::Scalar(scalar) => match scalar {
                 Scalar::Static { value, .. } => exact(value.len()),
-                Scalar::Render(RenderTempl { value, .. }) => match value {
-                    RenderValue::Path(path) => {
-                        self.visit_stmts(self.templ.file().import_by_path(path).templ().stmts())
-                    },
-                    RenderValue::Ident(id) => {
-                        match self.templ.file().resolve_id(id) {
-                            AliasKind::Block(block) => self.visit_stmts(&block.stmts),
-                            AliasKind::Import(import) => {
-                                let me = Visitor { templ: import.templ() };
-                                me.visit_stmts(import.templ().stmts())
-                            },
-                        }
+                Scalar::Render(RenderTempl { value: RenderValue::Ident(id), block, .. }) => {
+                    match (self.templ.file().resolve_id(id), block) {
+                        (AliasKind::Block(block), None) => self.visit_stmts(&block.stmts),
+                        (AliasKind::Block(_), Some(_)) => unreachable!("cannot render block from block"),
+                        (AliasKind::Import(import), None) => {
+                            let me = Visitor { templ: import.templ() };
+                            me.visit_stmts(import.templ().stmts())
+                        },
+                        (AliasKind::Import(import), Some((_, block))) => {
+                            let block = import.templ().file().block(block);
+                            let me = Visitor { templ: import.templ() };
+                            me.visit_stmts(&block.stmts)
+                        },
+                    }
+                },
+                Scalar::Render(RenderTempl { value: RenderValue::Path(path), block, .. }) => {
+                    let templ = self.templ.file().import_by_path(path).templ();
+                    match block {
+                        Some((_, block)) => {
+                            let block = templ.file().block(block);
+                            self.visit_stmts(&block.stmts)
+                        },
+                        None => {
+                            self.visit_stmts(templ.stmts())
+                        },
                     }
                 },
                 Scalar::Yield | Scalar::Expr { .. } | Scalar::Use(_) | Scalar::Item(_) => (0,None),
