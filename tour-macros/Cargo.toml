@@ -1,7 +1,15 @@
 [package]
 name = "tour-macros"
-version = "0.1.0"
-edition = "2024"
+description = "Tour Template Macros"
+documentation = "https://docs.rs/tour-macros"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [lib]
 proc-macro = true

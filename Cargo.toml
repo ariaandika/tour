@@ -2,3 +2,14 @@
 members = ["example","tour","tour-core", "tour-macros","tour-parser"]
 default-members = [ "tour"]
 resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Aria Andika <andikaakun17@gmail.com>"]
+repository = "https://github.com/ariaandika/tour"
+readme = "README.md"
+license = "MIT"
+keywords = ["template","html"]
+categories = ["template-engine"]
+

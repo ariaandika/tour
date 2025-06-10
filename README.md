@@ -63,3 +63,8 @@ attempt to render it without recompile, will change nothing and may result in er
 
 This is still better than require to recompile on every small changes. In practice, quick
 changes iteration is used for style changes.
+
+## License
+
+This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
+

@@ -1,7 +1,15 @@
 [package]
 name = "tour-parser"
-version = "0.1.0"
-edition = "2024"
+description = "Tour Template Parser"
+documentation = "https://docs.rs/tour-parser"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+repository.workspace = true
+readme.workspace = true
+license.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 proc-macro2 = "1.0.93"
