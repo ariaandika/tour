@@ -76,7 +76,7 @@ impl<'a> SynVisitor<'a> {
                 Ok(ok) => ok,
                 Err(err) => error!("{err}"),
             };
-            self.imports.push(Import::new(path, alias, templ));
+            self.imports.push(Import { path, alias, templ });
         }
 
         Ok(())

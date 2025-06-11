@@ -1,34 +1,14 @@
 //! The [`Template`] struct.
 use syn::*;
-
-use crate::{
-    ast::StmtTempl,
-    file::{BlockContent, File, Import},
-    metadata::Metadata,
-    syntax::LayoutTempl,
-};
-
+use crate::{ast::StmtTempl, file::File, metadata::Metadata};
 mod validate;
 
-// ===== Template =====
-
 /// Contains a single file template information.
-///
-/// This template can represent either main template or layout.
+#[derive(Debug)]
 pub struct Template {
     name: Ident,
     meta: Metadata,
     file: File,
-}
-
-impl std::fmt::Debug for Template {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Template")
-            .field("name", &self.name)
-            .field("meta", &self.meta)
-            .field("file", &"<..>")
-            .finish()
-    }
 }
 
 impl Template {
@@ -40,61 +20,41 @@ impl Template {
     }
 
     /// Returns selected block if any, otherwise return all statements.
-    pub fn try_stmts(&self) -> Result<&[StmtTempl]> {
+    pub(crate) fn stmts(&self) -> &[StmtTempl] {
         match self.meta.block() {
-            Some(block) => Ok(&self.try_block(block)?.stmts),
-            None => Ok(self.file.stmts()),
+            Some(block) => match self.file.get_block(block) {
+                Some(block) => &block.stmts,
+                None => panic!("[BUG] validation missed, selected block missing"),
+            },
+            None => self.file.stmts(),
         }
     }
 
-    /// Returns selected block if any, otherwise return all statements.
-    pub(crate) fn stmts(&self) -> &[StmtTempl] {
-        self.try_stmts().expect("[BUG] validation missed, selected block missing")
+    /// Returns all statements, regardles selected block.
+    pub fn all_stmts(&self) -> &[StmtTempl] {
+        self.file.stmts()
     }
 
-    pub fn try_import_by_path(&self, key: &LitStr) -> Result<&Import> {
-        let path = key.value();
-        self.file
-            .imports()
-            .iter()
-            .find(|&e|e == &*path)
-            .ok_or_else(|| Error::new(key.span(), format!("cannot find template `{}`",path)))
-    }
-
-    fn get_block(&self, block: &Ident) -> Option<&BlockContent> {
-        self.file
-            .blocks()
-            .iter()
-            .find(|e| &e.templ.name == block)
-    }
-
-    pub fn try_block(&self, block: &Ident) -> Result<&BlockContent> {
-        self.get_block(block)
-            .ok_or_else(|| Error::new(block.span(), format!("cannot find block `{block}`")))
-    }
-
+    /// Returns template name.
+    ///
+    /// Template name is from either derive macro ident, aliased, or auto generated.
     pub fn name(&self) -> &Ident {
         &self.name
     }
 
+    /// Returns template [`Metadata`].
     pub fn meta(&self) -> &Metadata {
         &self.meta
     }
 
+    /// Returns template [`File`].
     pub fn file(&self) -> &File {
         &self.file
     }
 
-    pub fn layout(&self) -> Option<&LayoutTempl> {
-        self.file.layout()
-    }
-
+    /// Split template into parts.
     pub fn into_parts(self) -> (Metadata, File) {
         (self.meta,self.file)
-    }
-
-    pub fn into_layout(self) -> Option<LayoutTempl> {
-        self.file.into_layout()
     }
 }
 

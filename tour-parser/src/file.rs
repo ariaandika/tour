@@ -95,11 +95,6 @@ impl File {
         &mut self.stmts
     }
 
-    /// Consume file into [`LayoutTempl`].
-    pub fn into_layout(self) -> Option<LayoutTempl> {
-        self.layout
-    }
-
     pub fn imports(&self) -> &[Import] {
         &self.imports
     }
@@ -131,16 +126,16 @@ pub struct Import {
 }
 
 impl Import {
-    pub(crate) fn new(path: Rc<str>, alias: Ident, templ: Template) -> Self {
-        Self { path, alias, templ }
-    }
-
-    pub fn templ(&self) -> &Template {
-        &self.templ
+    pub fn path(&self) -> &str {
+        &self.path
     }
 
     pub fn alias(&self) -> &Ident {
         &self.alias
+    }
+
+    pub fn templ(&self) -> &Template {
+        &self.templ
     }
 }
 

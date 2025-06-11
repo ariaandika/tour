@@ -14,6 +14,7 @@ use crate::{
 mod body;
 mod sizehint;
 
+/// Generate code from [`DeriveInput`].
 pub fn derive(input: &DeriveInput) -> Result<TokenStream> {
     let conf = Config::default();
     let meta = Metadata::from_attrs(&input.attrs, &conf)?;
