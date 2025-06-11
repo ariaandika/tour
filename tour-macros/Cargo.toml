@@ -16,7 +16,7 @@ proc-macro = true
 
 [dependencies]
 syn = { workspace = true }
-tour-parser = { path = "../tour-parser" }
+tour-parser = { path = "../tour-parser", version = "0.1.0" }
 
 [features]
 default = ["dev-reload"]

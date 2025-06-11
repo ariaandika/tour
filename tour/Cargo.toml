@@ -14,8 +14,8 @@ categories.workspace = true
 [dependencies]
 bytes = "1.10.1"
 itoa = "1.0.15"
-tour-macros = { path = "../tour-macros" }
-tour-core = { path = "../tour-core" }
+tour-macros = { path = "../tour-macros", version = "0.1.0" }
+tour-core = { path = "../tour-core", version = "0.1.0" }
 time = { version = "0.3.41", features = ["formatting"], optional = true }
 
 [features]
